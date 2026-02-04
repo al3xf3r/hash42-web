@@ -2,7 +2,7 @@ export default function HomePage() {
   const year = new Date().getFullYear();
 
   return (
-    <main className="bg-black text-white antialiased min-h-screen">
+    <main className="bg-black text-white antialiased min-h-screen overflow-x-hidden">
       {/* Background */}
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(46,108,255,0.22),transparent_55%),radial-gradient(ellipse_at_bottom,rgba(255,106,0,0.16),transparent_55%)]" />
@@ -125,10 +125,9 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="relative">
-              <div className="absolute -inset-6 rounded-[32px] bg-[radial-gradient(circle_at_top,rgba(46,108,255,0.25),transparent_55%),radial-gradient(circle_at_bottom,rgba(255,106,0,0.18),transparent_50%)] blur-2xl" />
-
-              <div className="relative rounded-[32px] border border-white/10 bg-black/40 overflow-hidden shadow-[0_0_40px_rgba(46,108,255,0.25)]">
+            <div className="relative overflow-hidden rounded-[32px]">
+  <div className="absolute -inset-6 rounded-[32px] bg-[radial-gradient(circle_at_top,rgba(46,108,255,0.25),transparent_55%),radial-gradient(circle_at_bottom,rgba(255,106,0,0.18),transparent_50%)] blur-2xl" />
+  <div className="relative rounded-[32px] border border-white/10 bg-black/40 overflow-hidden shadow-[0_0_40px_rgba(46,108,255,0.25)]">
                 <div className="p-3 border-b border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#ff6a00]" />
