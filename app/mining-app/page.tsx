@@ -18,6 +18,7 @@ type MeResponse = {
   address: string;
   username?: string | null;
   rig?: { level: number; slots: number; powerScore: number };
+  energy?: { dailyLimit: number; used: number; remaining: number };
   rewards?: { availableUsdCents: number; capUsdCents: number; minWithdrawUsdCents: number };
 };
 
@@ -43,7 +44,7 @@ export default function Page() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderRow[]>([]);
 
-  const [activeRun, setActiveRun] = useState<{ missionRunId: string; endsAt: string } | null>(null);
+const [activeRun, setActiveRun] = useState<{ missionRunId: string; missionId: string; endsAt: string } | null>(null);
 
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
@@ -81,6 +82,20 @@ export default function Page() {
     if (!activeRun) return 0;
     return Math.max(0, Math.floor((new Date(activeRun.endsAt).getTime() - now) / 1000));
   }, [activeRun, now]);
+
+  const activeMission = useMemo(() => {
+  if (!activeRun) return null;
+  return missions.find((m) => m.id === activeRun.missionId) || null;
+}, [activeRun, missions]);
+
+const activeTotalSec = activeMission?.durationSec ?? 0;
+
+const progressLeftPct = useMemo(() => {
+  if (!activeRun || !activeTotalSec) return 0;
+  return Math.min(100, Math.max(0, Math.round((timeLeftSec / activeTotalSec) * 100)));
+}, [activeRun, activeTotalSec, timeLeftSec]);
+
+
 
   const cap = me?.rewards?.capUsdCents ?? 1000;
   const available = me?.rewards?.availableUsdCents ?? 0;
@@ -154,9 +169,9 @@ export default function Page() {
     setToast("Logged out");
   }
 
-  async function fetchAll(t: string) {
-    await Promise.all([fetchMe(t), fetchMissions(t), fetchLeaderboard(t)]);
-  }
+async function fetchAll(t: string) {
+  await Promise.all([fetchMe(t), fetchMissions(t), fetchLeaderboard(t), fetchActiveRun(t)]);
+}
 
   async function fetchMe(t: string) {
     const r = await fetch(`${API}/me`, { headers: { Authorization: `Bearer ${t}` } });
@@ -177,6 +192,22 @@ export default function Page() {
     const j = await r.json();
     setMissions(j.missions || []);
   }
+
+  async function fetchActiveRun(t: string) {
+  const r = await fetch(`${API}/missions/active`, { headers: { Authorization: `Bearer ${t}` } });
+  if (!r.ok) return;
+  const j = await r.json();
+
+  if (j?.active) {
+    setActiveRun({
+      missionRunId: String(j.active.missionRunId),
+      missionId: String(j.active.missionId),
+      endsAt: String(j.active.endsAt),
+    });
+  } else {
+    setActiveRun(null);
+  }
+}
 
   async function fetchLeaderboard(t: string) {
     const r = await fetch(`${API}/leaderboard/weekly`, { headers: { Authorization: `Bearer ${t}` } });
@@ -201,7 +232,7 @@ export default function Page() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "start_failed");
 
-      setActiveRun({ missionRunId: j.missionRunId, endsAt: j.endsAt });
+      setActiveRun({ missionRunId: j.missionRunId, missionId, endsAt: j.endsAt });
       setToast("Mining started");
     } catch (e: any) {
       setError(e?.message || "Start failed");
@@ -428,9 +459,7 @@ export default function Page() {
                     {/* simple countdown bar: goes from 100% to 0% */}
                     <div
                       className="h-full bg-orange-500 transition-all"
-                      style={{
-                        width: `${Math.min(100, Math.max(0, (timeLeftSec / 30) * 100))}%`,
-                      }}
+                      style={{ width: `${progressLeftPct}%` }}
                     />
                   </div>
 
