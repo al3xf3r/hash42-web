@@ -182,7 +182,7 @@ export default function HomePage() {
 
                     <a
                       href="https://hash42.xyz/mining-app"
-                      className="mt-4 w-full inline-flex justify-center px-4 py-3 rounded-xl bg-[#ff6a00] hover:bg-[#ff8a2e] text-black font-semibold"
+                      className="mt-4 mb-6 w-full inline-flex justify-center px-4 py-3 rounded-xl bg-[#ff6a00] hover:bg-[#ff8a2e] text-black font-semibold"
                     >
                       Open app
                     </a>
@@ -190,7 +190,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-4 text-xs text-white/45">
+              <div className="mt-4 text-xs text-white/45 pb-2">
                 The beta runs with hash dollars (HUSD). No real USDC is
                 distributed.
               </div>
