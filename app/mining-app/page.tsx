@@ -13,17 +13,67 @@ type ActivityItem = {
   note: string;
 };
 
+type LeaderboardItem = {
+  rank: number;
+  userId: number;
+  username: string | null;
+  wallet: string;
+  powerScore: number;
+  totalClaimedNano: number;
+};
+
+type LeaderboardResponse = {
+  ok: boolean;
+  metric: "power_score";
+  items: LeaderboardItem[];
+  me: { userId: number; rank: number };
+};
+
+type MarketPack = {
+  key: string;
+  name: string;
+  priceCredits: number;
+  odds: Record<string, number>;
+};
+
+type MarketConfig = {
+  ok: boolean;
+  currency: { symbol: string; nanoPerUnit: string };
+  slotPricesCredits: Record<string, number>;
+  packs: MarketPack[];
+};
+
+type InventoryItem = {
+  userGpuId: number;
+  gpuId: number;
+  name: string;
+  rarity: string;
+  mhps: number;
+  imagePath: string;
+  createdAt: string;
+};
+
+type InventoryResponse = {
+  ok: boolean;
+  items: InventoryItem[];
+};
+
 type MeResponse = {
   address: string;
   username?: string | null;
   slotsUnlocked?: number; // 1..5
   starterRtxGifted?: boolean;
+  powerScore?: number;
+  beta?: {
+    symbol: string;
+    creditsNano: number;
+  };
   husd?: {
     symbol: string;
-    balanceNano: number; // MINING balance (accrued)
+    balanceNano: number;
     capNano: number;
-    vaultNano?: number; // VAULT balance (if backend supports)
-    totalClaimedNano: number; // lifetime moved-to-vault
+    vaultNano?: number;
+    totalClaimedNano: number;
   };
   mining?: {
     active: boolean;
@@ -33,7 +83,7 @@ type MeResponse = {
     capReached: boolean;
     rateNanoPerSec?: number;
     serverNow?: string;
-    sessionSeconds?: number; // 86400
+    sessionSeconds?: number;
   };
 };
 
@@ -45,8 +95,13 @@ function shortAddr(a?: string | null) {
 }
 
 function fmtHusd8FromNano(nano?: number) {
-  const husd = Number(nano || 0) / 1e8; // 1 HUSD = 1e8 nano
+  const husd = Number(nano || 0) / 1e8;
   return husd.toFixed(8);
+}
+
+function fmtCreditsFromNano(nano?: number) {
+  const v = Number(nano || 0) / 1e8;
+  return v.toFixed(2);
 }
 
 function clampPct(x: number) {
@@ -72,6 +127,15 @@ function fmtWhen(iso?: string) {
   return `${dd}/${mm} ${hh}:${mi}`;
 }
 
+function rarityColor(r: string) {
+  const x = (r || "").toLowerCase();
+  if (x === "legendary") return "text-cyan-200";
+  if (x === "epic") return "text-orange-300";
+  if (x === "rare") return "text-yellow-300";
+  if (x === "uncommon") return "text-blue-300";
+  return "text-green-300";
+}
+
 export default function Page() {
   const [tab, setTab] = useState<TabKey>("mining");
 
@@ -89,19 +153,30 @@ export default function Page() {
   const [showUsername, setShowUsername] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState("");
 
-  // UI-only animated mining balance
   const [uiMiningBalanceNano, setUiMiningBalanceNano] = useState<number>(0);
 
-  // Slot modal
   const [slotModal, setSlotModal] = useState<null | { slotIndex: number; payoutHusd: number; priceUsd: number }>(null);
 
-  // Vault Activity
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
   // Starter RTX onboarding modal
   const [showStarterRtx, setShowStarterRtx] = useState(false);
   const [starterStep, setStarterStep] = useState<0 | 1 | 2>(0);
+
+  // Leaderboard
+  const [lb, setLb] = useState<LeaderboardResponse | null>(null);
+  const [lbLoading, setLbLoading] = useState(false);
+
+  // Marketplace
+  const [market, setMarket] = useState<MarketConfig | null>(null);
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [openingPack, setOpeningPack] = useState<null | { pack: MarketPack }>(null);
+  const [reveal, setReveal] = useState<null | { packName: string; reward: InventoryItem | any }>(null);
+
+  // Inventory (for marketplace view)
+  const [inv, setInv] = useState<InventoryItem[]>([]);
+  const [invLoading, setInvLoading] = useState(false);
 
   // tick
   useEffect(() => {
@@ -138,7 +213,7 @@ export default function Page() {
     if (!token) return;
     if (!me?.mining?.active) return;
 
-    const rate = Number(me?.mining?.rateNanoPerSec ?? 11); // fallback
+    const rate = Number(me?.mining?.rateNanoPerSec ?? 11);
     const uiTick = setInterval(() => {
       setUiMiningBalanceNano((x) => x + rate);
     }, 1000);
@@ -158,6 +233,23 @@ export default function Page() {
     if (!token) return;
     if (tab !== "vault") return;
     fetchActivity(token).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, token]);
+
+  // Load leaderboard
+  useEffect(() => {
+    if (!token) return;
+    if (tab !== "leaderboard") return;
+    fetchLeaderboard(token).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, token]);
+
+  // Load marketplace config + inventory
+  useEffect(() => {
+    if (!token) return;
+    if (tab !== "marketplace") return;
+    fetchMarketConfig(token).catch(() => {});
+    fetchInventory(token).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, token]);
 
@@ -194,7 +286,10 @@ export default function Page() {
   const vaultNano = Number(me?.husd?.vaultNano || 0);
   const totalClaimedNano = Number(me?.husd?.totalClaimedNano || 0);
 
-  // ✅ Claim ONLY when server balance reached cap (no UI drift exploits)
+  const creditsNano = Number(me?.beta?.creditsNano || 0);
+  const creditsSymbol = me?.beta?.symbol || "CREDITS";
+
+  // Claim ONLY when server balance reached cap
   const canClaim = capNano > 0 && miningBalanceNano >= capNano;
 
   async function connectWallet() {
@@ -278,7 +373,6 @@ export default function Page() {
     if (j && j.starterRtxGifted === false) {
       setShowStarterRtx(true);
       setStarterStep(0);
-      // quick staged animation
       setTimeout(() => setStarterStep(1), 400);
       setTimeout(() => setStarterStep(2), 900);
     }
@@ -295,6 +389,48 @@ export default function Page() {
       setActivity(Array.isArray(j?.items) ? j.items : []);
     } finally {
       setActivityLoading(false);
+    }
+  }
+
+  async function fetchLeaderboard(t: string) {
+    setLbLoading(true);
+    try {
+      const r = await fetch(`${API}/leaderboard`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) return;
+      setLb(j);
+    } finally {
+      setLbLoading(false);
+    }
+  }
+
+  async function fetchMarketConfig(t: string) {
+    setMarketLoading(true);
+    try {
+      const r = await fetch(`${API}/market/config`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) return;
+      setMarket(j);
+    } finally {
+      setMarketLoading(false);
+    }
+  }
+
+  async function fetchInventory(t: string) {
+    setInvLoading(true);
+    try {
+      const r = await fetch(`${API}/inventory`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) return;
+      setInv(Array.isArray(j?.items) ? j.items : []);
+    } finally {
+      setInvLoading(false);
     }
   }
 
@@ -363,7 +499,6 @@ export default function Page() {
     }
   }
 
-  // ✅ Claim at cap -> moves MINING to VAULT (beta)
   async function claimToVault() {
     if (!token) return;
     setBusy(true);
@@ -404,11 +539,62 @@ export default function Page() {
       setShowStarterRtx(false);
       setToast("RTX Classic received");
       await fetchMe(token);
+      await fetchInventory(token);
     } catch (e: any) {
       setError(e?.message || "Starter RTX failed");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function buySlotWithCredits(slot: number) {
+    if (!token) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`${API}/market/buy-slot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ slot }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "buy_slot_failed");
+
+      setToast(j.alreadyUnlocked ? "Already unlocked" : `Slot ${slot} unlocked`);
+      await fetchMe(token);
+    } catch (e: any) {
+      setError(e?.message || "Buy slot failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openPack(pack: MarketPack) {
+    if (!token) return;
+    setOpeningPack({ pack });
+    setError(null);
+
+    // small staged reveal animation
+    setTimeout(async () => {
+      try {
+        const r = await fetch(`${API}/market/open-pack`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ packKey: pack.key }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || "open_pack_failed");
+
+        setReveal({ packName: pack.name, reward: j.reward });
+        setToast("Pack opened");
+        await fetchMe(token);
+        await fetchInventory(token);
+      } catch (e: any) {
+        setError(e?.message || "Open pack failed");
+      } finally {
+        setOpeningPack(null);
+      }
+    }, 650);
   }
 
   function openBuySlot(slotIndex: number) {
@@ -463,7 +649,6 @@ export default function Page() {
               </div>
             </div>
 
-            {/* ✅ Disabled but visible (muted orange) */}
             <button
               onClick={claimToVault}
               disabled={busy || !canClaim}
@@ -480,7 +665,6 @@ export default function Page() {
             </button>
           </div>
 
-          {/* cap progress */}
           <div className="mt-3 h-2 rounded-full bg-zinc-900 overflow-hidden">
             <div className="h-full bg-orange-500" style={{ width: `${capPct}%` }} />
           </div>
@@ -499,7 +683,11 @@ export default function Page() {
 
         {/* GPU Slots */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <div className="font-bold mb-3">GPU Slots</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-bold">GPU Slots</div>
+            <div className="text-xs text-zinc-500">Power: <span className="text-orange-400 font-semibold">{Number(me?.powerScore || 0)}</span></div>
+          </div>
+
           <div className="grid grid-cols-5 gap-2">
             {Array.from({ length: 5 }).map((_, i) => {
               const slotIndex = i + 1;
@@ -549,7 +737,7 @@ export default function Page() {
           </div>
 
           <div className="text-zinc-500 text-xs mt-3">
-            Slot 1 is gifted (RTX Classic • 1 MH/s). Slots 2–5 are purchasable (beta UI only).
+            Slot 1 is gifted (RTX Classic • 1 MH/s). Slots 2–5 can be unlocked from Marketplace using Credits.
           </div>
         </div>
 
@@ -586,7 +774,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Funds (NO Move to Vault button) */}
+        {/* Funds */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between">
             <div className="font-bold">Funds</div>
@@ -615,8 +803,15 @@ export default function Page() {
             </div>
           </div>
 
+          <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-zinc-400">Beta credits</span>
+              <span className="font-bold">{fmtCreditsFromNano(creditsNano)} {creditsSymbol}</span>
+            </div>
+          </div>
+
           <div className="text-zinc-500 text-xs mt-3">
-            Funds move to Vault only via Claim (when cap is reached). Beta: Vault is locked.
+            Beta credits are used only in Marketplace. Vault is locked during beta.
           </div>
         </div>
       </div>
@@ -624,11 +819,164 @@ export default function Page() {
   }
 
   function MarketplaceTab() {
+    const packs = market?.packs || [];
+    const slotPrices = market?.slotPricesCredits || {};
+
     return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-        <div className="font-bold text-lg">Marketplace (Beta)</div>
-        <div className="text-zinc-400 text-sm mt-2">
-          Packs + drop rates (off-chain). We’ll implement FIFA-style packs here next.
+      <div className="space-y-4">
+        {/* Credits header */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-zinc-400 text-xs">Beta Credits</div>
+              <div className="mt-1 text-2xl font-extrabold">
+                {fmtCreditsFromNano(creditsNano)} <span className="text-zinc-400 text-sm font-semibold">{creditsSymbol}</span>
+              </div>
+              <div className="text-zinc-500 text-xs mt-1">
+                Use credits to unlock slots and open packs (beta only).
+              </div>
+            </div>
+
+            <button
+              onClick={() => token && fetchMe(token)}
+              disabled={busy}
+              className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+            >
+              Sync
+            </button>
+          </div>
+        </div>
+
+        {/* Unlock slots */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="font-bold text-lg">Unlock Slots</div>
+          <div className="text-zinc-400 text-sm mt-1">Unlock in order. Slots increase your mining cap.</div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[2, 3, 4, 5].map((s) => {
+              const price = Number(slotPrices[String(s)] || 0);
+              const locked = s > slotsUnlocked + 1;
+              const already = s <= slotsUnlocked;
+              const disabled = busy || locked || already;
+
+              return (
+                <button
+                  key={s}
+                  disabled={disabled}
+                  onClick={() => buySlotWithCredits(s)}
+                  className={[
+                    "rounded-xl border p-3 text-left",
+                    already
+                      ? "border-zinc-800 bg-black/30 text-zinc-500"
+                      : locked
+                      ? "border-orange-500/20 bg-orange-500/10 text-orange-200/60"
+                      : "border-orange-500/40 bg-orange-500/15 hover:bg-orange-500/20 text-orange-100",
+                    "disabled:cursor-not-allowed",
+                  ].join(" ")}
+                >
+                  <div className="font-extrabold">Slot {s}</div>
+                  <div className="text-xs opacity-80 mt-1">
+                    {already ? "Unlocked" : locked ? "Unlock previous first" : `${price} ${creditsSymbol}`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Packs */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-bold text-lg">Packs</div>
+              <div className="text-zinc-400 text-sm">FIFA-style: open packs to receive GPUs.</div>
+            </div>
+            <button
+              onClick={() => token && fetchMarketConfig(token)}
+              disabled={busy || marketLoading}
+              className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+            >
+              {marketLoading ? "..." : "Refresh"}
+            </button>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-2">
+            {packs.map((p) => {
+              const priceNano = Number(p.priceCredits || 0) * 1e8;
+              const afford = creditsNano >= priceNano;
+              return (
+                <button
+                  key={p.key}
+                  disabled={busy || !afford}
+                  onClick={() => openPack(p)}
+                  className={[
+                    "rounded-xl border border-zinc-800 bg-black/30 hover:bg-zinc-900 p-3 text-left",
+                    !afford ? "opacity-60 cursor-not-allowed" : "",
+                  ].join(" ")}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-extrabold">{p.name}</div>
+                    <div className="text-xs text-orange-300 font-bold">{p.priceCredits} {creditsSymbol}</div>
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-1">
+                    Odds: C {Math.round((p.odds.common || 0) * 100)}% • U {Math.round((p.odds.uncommon || 0) * 100)}% • R {Math.round((p.odds.rare || 0) * 100)}% • E {Math.round((p.odds.epic || 0) * 100)}% • L {Math.round((p.odds.legendary || 0) * 100)}%
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="text-zinc-500 text-xs mt-3">
+            Rewards are stored off-chain in your inventory (beta). Later this will become on-chain / real economy.
+          </div>
+        </div>
+
+        {/* Inventory preview */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="flex items-center justify-between">
+            <div className="font-bold text-lg">Inventory</div>
+            <button
+              onClick={() => token && fetchInventory(token)}
+              disabled={busy || invLoading}
+              className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+            >
+              {invLoading ? "..." : "Sync"}
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {invLoading ? (
+              <>
+                <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
+                <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
+                <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
+              </>
+            ) : inv.length === 0 ? (
+              <div className="text-zinc-500 text-sm">No GPUs yet.</div>
+            ) : (
+              inv.slice(0, 10).map((g) => (
+                <div key={g.userGpuId} className="rounded-xl border border-zinc-800 bg-black/30 p-3 flex gap-3">
+                  <div className="w-14 h-14 rounded-lg overflow-hidden border border-zinc-800 bg-black">
+                    <img
+                      src={g.imagePath || "/assets/rtx-classic.webp"}
+                      alt={g.name || "GPU"}
+                      className="w-full h-full object-cover"
+                      draggable={false}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold truncate">{g.name || `GPU #${g.gpuId}`}</div>
+                      <div className={`text-xs font-bold ${rarityColor(g.rarity)}`}>{(g.rarity || "common").toUpperCase()}</div>
+                    </div>
+                    <div className="text-xs text-zinc-500 mt-1">
+                      {g.mhps} MH/s • {fmtWhen(g.createdAt)}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     );
@@ -636,10 +984,70 @@ export default function Page() {
 
   function LeaderboardTab() {
     return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-        <div className="font-bold text-lg">Leaderboard</div>
-        <div className="text-zinc-400 text-sm mt-2">
-          Weekly + All-Time. Metric: computing power (not earnings). Coming next.
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-bold text-lg">Leaderboard</div>
+              <div className="text-zinc-400 text-sm">Metric: Power Score (inventory power).</div>
+            </div>
+            <button
+              onClick={() => token && fetchLeaderboard(token)}
+              disabled={busy || lbLoading}
+              className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+            >
+              {lbLoading ? "..." : "Refresh"}
+            </button>
+          </div>
+
+          <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-zinc-400">Your rank</span>
+              <span className="font-extrabold text-orange-400">#{lb?.me?.rank || "—"}</span>
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-zinc-400">Your power</span>
+              <span className="font-bold">{Number(me?.powerScore || 0)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="font-bold mb-3">Top Players</div>
+
+          {lbLoading ? (
+            <div className="space-y-2">
+              <div className="h-12 rounded-xl bg-zinc-900 animate-pulse" />
+              <div className="h-12 rounded-xl bg-zinc-900 animate-pulse" />
+              <div className="h-12 rounded-xl bg-zinc-900 animate-pulse" />
+              <div className="h-12 rounded-xl bg-zinc-900 animate-pulse" />
+            </div>
+          ) : !lb?.items?.length ? (
+            <div className="text-zinc-500 text-sm">No data yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {lb.items.map((it) => (
+                <div key={it.userId} className="rounded-xl border border-zinc-800 bg-black/30 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="font-extrabold text-orange-400">#{it.rank}</div>
+                    <div className="text-xs text-zinc-500">Claimed: {fmtHusd8FromNano(it.totalClaimedNano)} HUSD</div>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <div className="font-bold">
+                      {it.username || shortAddr(it.wallet)}
+                    </div>
+                    <div className="text-sm font-extrabold">
+                      {it.powerScore} <span className="text-zinc-500 font-semibold text-xs">POWER</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="text-zinc-500 text-xs mt-3">
+            Power Score will be tied to your GPU collection. This leaderboard is ready for future real economy.
+          </div>
         </div>
       </div>
     );
@@ -648,7 +1056,6 @@ export default function Page() {
   function VaultTab() {
     return (
       <div className="space-y-4">
-        {/* Vault summary */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="text-zinc-400 text-xs">Vault Balance</div>
           <div className="mt-1 text-3xl font-extrabold tracking-tight">
@@ -678,7 +1085,6 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Profile card */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="text-zinc-400 text-xs">Username</div>
           <div className="text-xl font-bold">{me?.username || "—"}</div>
@@ -702,7 +1108,6 @@ export default function Page() {
           </button>
         </div>
 
-        {/* Activity list */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between">
             <div className="font-bold">Activity</div>
@@ -844,44 +1249,62 @@ export default function Page() {
           </div>
         )}
 
-        {/* Slot modal */}
-        {token && slotModal && (
-          <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-              <div className="font-bold text-lg">Buy Slot #{slotModal.slotIndex}</div>
-              <div className="text-zinc-400 text-sm mt-1">Unlocking slots increases your payout cap.</div>
-
-              <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">New cap</span>
-                  <span className="font-bold">{slotModal.payoutHusd} HUSD</span>
+        {/* Pack opening overlay */}
+        {token && openingPack && (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
+            <div className="w-full max-w-md rounded-2xl border border-orange-500/30 bg-zinc-950 p-4 relative overflow-hidden">
+              <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
+              <div className="relative">
+                <div className="text-xs text-orange-300/80 font-semibold tracking-wide">OPENING</div>
+                <div className="mt-1 text-xl font-extrabold">{openingPack.pack.name}</div>
+                <div className="mt-4 h-40 rounded-xl border border-zinc-800 bg-black/30 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full border-4 border-orange-500/30 border-t-orange-500 animate-spin" />
                 </div>
-                <div className="flex justify-between mt-1">
-                  <span className="text-zinc-400">Price</span>
-                  <span className="font-bold">${slotModal.priceUsd.toFixed(2)}</span>
+                <div className="text-zinc-500 text-xs mt-3">Decrypting drop...</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reveal modal */}
+        {token && reveal && (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
+            <div className="w-full max-w-md rounded-2xl border border-orange-500/30 bg-zinc-950 p-4 relative overflow-hidden">
+              <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
+
+              <div className="relative">
+                <div className="text-xs text-orange-300/80 font-semibold tracking-wide">REVEAL</div>
+                <div className="mt-1 text-xl font-extrabold">{reveal.packName}</div>
+
+                <div className="mt-4 rounded-xl border border-zinc-800 bg-black/30 overflow-hidden">
+                  <img
+                    src={reveal.reward?.imagePath || "/assets/rtx-classic.webp"}
+                    alt={reveal.reward?.name || "GPU"}
+                    className="w-full h-56 object-cover"
+                    draggable={false}
+                  />
                 </div>
-              </div>
 
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => setSlotModal(null)}
-                  className="flex-1 py-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    setToast("Purchase flow (beta) coming next");
-                    setSlotModal(null);
-                  }}
-                  className="flex-1 py-3 rounded-xl bg-orange-500 text-black font-bold"
-                >
-                  Buy (Beta)
-                </button>
-              </div>
+                <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="font-extrabold truncate">{reveal.reward?.name || `GPU #${reveal.reward?.gpuId}`}</div>
+                    <div className={`text-xs font-bold ${rarityColor(reveal.reward?.rarity || "common")}`}>
+                      {(reveal.reward?.rarity || "common").toUpperCase()}
+                    </div>
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-1">
+                    {Number(reveal.reward?.mhps || 1)} MH/s
+                  </div>
+                </div>
 
-              <div className="text-zinc-500 text-xs mt-3">
-                Beta note: slot purchases are off-chain for now. We’ll wire payments later.
+                <button
+                  onClick={() => setReveal(null)}
+                  className="mt-4 w-full py-3 rounded-xl bg-orange-500 text-black font-extrabold"
+                >
+                  Continue
+                </button>
               </div>
             </div>
           </div>
@@ -891,7 +1314,6 @@ export default function Page() {
         {token && showStarterRtx && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
             <div className="w-full max-w-md rounded-2xl border border-orange-500/30 bg-zinc-950 p-4 overflow-hidden relative">
-              {/* glow */}
               <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
               <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
 
@@ -943,7 +1365,6 @@ export default function Page() {
                 </div>
               </div>
 
-              {/* local keyframes */}
               <style jsx>{`
                 @keyframes pop {
                   0% { transform: scale(0.97); opacity: 0.4; }
@@ -955,7 +1376,6 @@ export default function Page() {
         )}
       </div>
 
-      {/* Bottom Nav */}
       {token ? <BottomNav /> : null}
     </main>
   );
