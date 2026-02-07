@@ -1,5 +1,4 @@
 // app/mining-app/page.tsx
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -18,6 +17,7 @@ type MeResponse = {
   address: string;
   username?: string | null;
   slotsUnlocked?: number; // 1..5
+  starterRtxGifted?: boolean;
   husd?: {
     symbol: string;
     balanceNano: number; // MINING balance (accrued)
@@ -95,9 +95,13 @@ export default function Page() {
   // Slot modal
   const [slotModal, setSlotModal] = useState<null | { slotIndex: number; payoutHusd: number; priceUsd: number }>(null);
 
-  // Vault Activity (optional; safe if endpoint not present)
+  // Vault Activity
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+
+  // Starter RTX onboarding modal
+  const [showStarterRtx, setShowStarterRtx] = useState(false);
+  const [starterStep, setStarterStep] = useState<0 | 1 | 2>(0);
 
   // tick
   useEffect(() => {
@@ -149,7 +153,7 @@ export default function Page() {
     };
   }, [token, me?.mining?.active, me?.mining?.rateNanoPerSec]);
 
-  // Load activity when opening Vault tab (optional)
+  // Load activity when opening Vault tab
   useEffect(() => {
     if (!token) return;
     if (tab !== "vault") return;
@@ -190,8 +194,8 @@ export default function Page() {
   const vaultNano = Number(me?.husd?.vaultNano || 0);
   const totalClaimedNano = Number(me?.husd?.totalClaimedNano || 0);
 
-  // ✅ Claim ONLY at cap reached
-  const canClaim = capNano > 0 && uiMiningBalanceNano >= capNano;
+  // ✅ Claim ONLY when server balance reached cap (no UI drift exploits)
+  const canClaim = capNano > 0 && miningBalanceNano >= capNano;
 
   async function connectWallet() {
     setError(null);
@@ -268,6 +272,15 @@ export default function Page() {
     if (!j?.username) {
       setShowUsername(true);
       setUsernameDraft("");
+    }
+
+    // Starter RTX onboarding
+    if (j && j.starterRtxGifted === false) {
+      setShowStarterRtx(true);
+      setStarterStep(0);
+      // quick staged animation
+      setTimeout(() => setStarterStep(1), 400);
+      setTimeout(() => setStarterStep(2), 900);
     }
   }
 
@@ -363,7 +376,7 @@ export default function Page() {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || `claim_failed_${r.status}`);
 
-      setToast("Claimed to Vault");
+      setToast("Moved to Vault");
       await fetchMe(token);
 
       if (tab === "vault") {
@@ -371,6 +384,28 @@ export default function Page() {
       }
     } catch (e: any) {
       setError(e?.message || "Claim failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function claimStarterRtx() {
+    if (!token) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`${API}/rigs/claim-starter-rtx`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `starter_rtx_failed_${r.status}`);
+
+      setShowStarterRtx(false);
+      setToast("RTX Classic received");
+      await fetchMe(token);
+    } catch (e: any) {
+      setError(e?.message || "Starter RTX failed");
     } finally {
       setBusy(false);
     }
@@ -431,21 +466,15 @@ export default function Page() {
             {/* ✅ Disabled but visible (muted orange) */}
             <button
               onClick={claimToVault}
-              disabled={busy || !canClaim || miningActive}
+              disabled={busy || !canClaim}
               className={[
                 "shrink-0 px-4 py-3 rounded-xl font-extrabold text-sm border",
-                canClaim && !miningActive
+                canClaim
                   ? "bg-orange-500 text-black border-orange-500"
                   : "bg-orange-500/20 text-orange-200 border-orange-500/30",
                 "disabled:opacity-100 disabled:cursor-not-allowed",
               ].join(" ")}
-              title={
-                miningActive
-                  ? "Stop mining to claim"
-                  : canClaim
-                  ? "Claim to Vault"
-                  : "Reach cap to claim"
-              }
+              title={canClaim ? "Claim to Vault" : "Reach cap to claim"}
             >
               Claim
             </button>
@@ -481,10 +510,15 @@ export default function Page() {
                 return (
                   <div
                     key={slotIndex}
-                    className="aspect-square rounded-xl border border-orange-500/60 bg-orange-500/10 flex items-center justify-center text-xs font-bold"
-                    title="Free RTX — 1 MH/s"
+                    className="aspect-square rounded-xl border border-orange-500/60 bg-orange-500/10 overflow-hidden"
+                    title="RTX Classic — 1 MH/s"
                   >
-                    RTX
+                    <img
+                      src="/assets/rtx-classic.webp"
+                      alt="RTX Classic"
+                      className="w-full h-full object-cover"
+                      draggable={false}
+                    />
                   </div>
                 );
               }
@@ -515,7 +549,7 @@ export default function Page() {
           </div>
 
           <div className="text-zinc-500 text-xs mt-3">
-            Slot 1 is gifted (Free RTX 1 MH/s). Slots 2–5 are purchasable (beta UI only).
+            Slot 1 is gifted (RTX Classic • 1 MH/s). Slots 2–5 are purchasable (beta UI only).
           </div>
         </div>
 
@@ -547,12 +581,12 @@ export default function Page() {
             </div>
 
             <div className="text-zinc-500 text-xs mt-3">
-              Reach 100% cap to enable Claim. Claim is disabled while mining is active.
+              Reach 100% cap to enable Claim. Claim moves funds to Vault.
             </div>
           </div>
         </div>
 
-        {/* Funds (NO Move to Vault) */}
+        {/* Funds (NO Move to Vault button) */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between">
             <div className="font-bold">Funds</div>
@@ -849,6 +883,73 @@ export default function Page() {
               <div className="text-zinc-500 text-xs mt-3">
                 Beta note: slot purchases are off-chain for now. We’ll wire payments later.
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Starter RTX Onboarding */}
+        {token && showStarterRtx && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
+            <div className="w-full max-w-md rounded-2xl border border-orange-500/30 bg-zinc-950 p-4 overflow-hidden relative">
+              {/* glow */}
+              <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
+
+              <div className="relative">
+                <div className="text-xs text-orange-300/80 font-semibold tracking-wide">WELCOME DROP</div>
+                <div className="mt-1 text-xl font-extrabold">You received your first GPU</div>
+                <div className="text-zinc-400 text-sm mt-1">RTX Classic • 1 MH/s</div>
+
+                <div
+                  className={[
+                    "mt-4 rounded-xl border border-zinc-800 bg-black/30 overflow-hidden",
+                    starterStep >= 1 ? "animate-[pop_400ms_ease-out_1]" : "",
+                  ].join(" ")}
+                >
+                  <img src="/assets/rtx-classic.webp" alt="RTX Classic" className="w-full h-56 object-cover" />
+                </div>
+
+                <div className="mt-4 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400">Status</span>
+                    <span className={starterStep >= 2 ? "text-orange-400 font-bold" : "text-zinc-500"}>
+                      {starterStep >= 2 ? "Ready" : "Initializing..."}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-zinc-900 overflow-hidden">
+                    <div
+                      className="h-full bg-orange-500 transition-all"
+                      style={{ width: `${starterStep === 0 ? 25 : starterStep === 1 ? 65 : 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={claimStarterRtx}
+                  disabled={busy || starterStep < 2}
+                  className={[
+                    "mt-4 w-full py-3 rounded-xl font-extrabold border",
+                    starterStep >= 2
+                      ? "bg-orange-500 text-black border-orange-500"
+                      : "bg-orange-500/20 text-orange-200 border-orange-500/30",
+                    "disabled:opacity-100 disabled:cursor-not-allowed",
+                  ].join(" ")}
+                >
+                  {starterStep >= 2 ? "Claim GPU" : "Loading..."}
+                </button>
+
+                <div className="text-zinc-500 text-xs mt-3">
+                  This is a one-time gift. It will stay linked to your wallet.
+                </div>
+              </div>
+
+              {/* local keyframes */}
+              <style jsx>{`
+                @keyframes pop {
+                  0% { transform: scale(0.97); opacity: 0.4; }
+                  100% { transform: scale(1); opacity: 1; }
+                }
+              `}</style>
             </div>
           </div>
         )}

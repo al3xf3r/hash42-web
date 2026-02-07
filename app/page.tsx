@@ -50,7 +50,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
-              src="/assets/icon-h42.png"
+              src="/assets/icon-h42.webp"
               alt="H42 icon"
               className="h-9 w-9 rounded-xl border border-white/10 bg-black/40"
             />
@@ -226,7 +226,7 @@ export default function HomePage() {
 
                   <div className="p-4">
                     <img
-                      src="/assets/hero-hash42-miningapp.png"
+                      src="/assets/hero-hash42-miningapp.webp"
                       alt="Hash42 hero"
                       className="w-full md:w-[92%] md:mx-auto rounded-2xl border border-white/10"
                     />
@@ -643,7 +643,7 @@ export default function HomePage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <img
-                src="/assets/logo-hash42-labs.png"
+                src="/assets/logo-hash42-labs.webp"
                 alt="Hash42 Labs"
                 className="h-9 w-auto opacity-90"
               />
