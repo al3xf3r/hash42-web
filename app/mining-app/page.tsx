@@ -112,6 +112,13 @@ type MeResponse = {
 
 type TabKey = "mining" | "marketplace" | "leaderboard" | "vault";
 
+type PopupState =
+  | null
+  | {
+      title: string;
+      message: string;
+    };
+
 function shortAddr(a?: string | null) {
   if (!a) return "—";
   return `${a.slice(0, 6)}...${a.slice(-4)}`;
@@ -136,10 +143,7 @@ function fmtTime(sec: number) {
   const hh = Math.floor(s / 3600);
   const mm = Math.floor((s % 3600) / 60);
   const ss = s % 60;
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(
-    2,
-    "0"
-  )}`;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 }
 
 function fmtWhen(iso?: string) {
@@ -162,6 +166,49 @@ function rarityColor(r: string) {
   return "text-green-300";
 }
 
+function ErrorModal({
+  open,
+  title,
+  message,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-[999]">
+      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-red-300/90 text-xs font-semibold tracking-wide">ERROR</div>
+            <div className="mt-1 text-lg font-extrabold text-zinc-100">{title}</div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-200 leading-relaxed">
+          {message}
+        </div>
+
+        <button
+          onClick={onClose}
+          className="mt-4 w-full py-3 rounded-xl bg-orange-500 text-black font-extrabold"
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Page() {
   const [tab, setTab] = useState<TabKey>("mining");
 
@@ -174,16 +221,16 @@ export default function Page() {
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+
+  // ✅ Popup errors
+  const [popup, setPopup] = useState<PopupState>(null);
 
   const [showUsername, setShowUsername] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState("");
 
   const [uiMiningBalanceNano, setUiMiningBalanceNano] = useState<number>(0);
 
-  const [slotModal, setSlotModal] = useState<null | { slotIndex: number; payoutHusd: number; priceUsd: number }>(
-    null
-  );
+  const [slotModal, setSlotModal] = useState<null | { slotIndex: number; payoutHusd: number; priceUsd: number }>(null);
 
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -313,10 +360,7 @@ export default function Page() {
   }, [endsAtMs, now, me?.mining?.secondsLeft]);
 
   const sessionTotalSec = Number(me?.mining?.sessionSeconds || 86400);
-  const sessionLeftPct = useMemo(
-    () => clampPct(Math.round((secondsLeft / sessionTotalSec) * 100)),
-    [secondsLeft, sessionTotalSec]
-  );
+  const sessionLeftPct = useMemo(() => clampPct(Math.round((secondsLeft / sessionTotalSec) * 100)), [secondsLeft, sessionTotalSec]);
 
   const capNano = Number(me?.husd?.capNano || 0);
 
@@ -337,10 +381,24 @@ export default function Page() {
   // Claim ONLY when server balance reached cap
   const canClaim = capNano > 0 && miningBalanceNano >= capNano;
 
+  function showError(title: string, message: string) {
+    setPopup({ title, message });
+  }
+
+  // ✅ Frontend rule: while mining is active, rig changes are blocked
+  function blockIfMiningActive(actionLabel: string) {
+    if (!miningActive) return false;
+    showError(
+      "Action blocked (Mining active)",
+      `You can't ${actionLabel} while mining is running.\n\nStop mining first, then change your rig, then start mining again.`
+    );
+    return true;
+  }
+
   async function connectWallet() {
-    setError(null);
+    if (popup) setPopup(null);
     if (!(window as any).ethereum) {
-      setError("MetaMask not found");
+      showError("MetaMask not found", "Please install MetaMask (or use a compatible wallet) to continue.");
       return;
     }
     const p = new BrowserProvider((window as any).ethereum);
@@ -358,7 +416,7 @@ export default function Page() {
   async function login() {
     if (!provider || !address) return;
     setBusy(true);
-    setError(null);
+    if (popup) setPopup(null);
     try {
       const r1 = await fetch(`${API}/auth/nonce`, {
         method: "POST",
@@ -387,7 +445,7 @@ export default function Page() {
       await fetchRigSlots(v.token);
       setToast("Logged in");
     } catch (e: any) {
-      setError(e?.message || "Login failed");
+      showError("Login failed", e?.message || "Login failed");
     } finally {
       setBusy(false);
     }
@@ -404,6 +462,7 @@ export default function Page() {
     setRigSlots(null);
     setEquipModal(null);
     setToast("Logged out");
+    if (popup) setPopup(null);
   }
 
   async function fetchMe(t: string) {
@@ -497,7 +556,7 @@ export default function Page() {
   async function saveUsername() {
     if (!token) return;
     setBusy(true);
-    setError(null);
+    if (popup) setPopup(null);
     try {
       const r = await fetch(`${API}/profile/username`, {
         method: "POST",
@@ -511,7 +570,7 @@ export default function Page() {
       setToast("Username saved");
       await fetchMe(token);
     } catch (e: any) {
-      setError(e?.message || "Username failed");
+      showError("Username error", e?.message || "Username failed");
     } finally {
       setBusy(false);
     }
@@ -520,7 +579,7 @@ export default function Page() {
   async function startMining() {
     if (!token) return;
     setBusy(true);
-    setError(null);
+    if (popup) setPopup(null);
     try {
       const r = await fetch(`${API}/mining/start`, {
         method: "POST",
@@ -533,7 +592,7 @@ export default function Page() {
       await fetchMe(token);
       await fetchRigSlots(token);
     } catch (e: any) {
-      setError(e?.message || "Start mining failed");
+      showError("Start mining failed", e?.message || "Start mining failed");
     } finally {
       setBusy(false);
     }
@@ -542,7 +601,7 @@ export default function Page() {
   async function stopMining() {
     if (!token) return;
     setBusy(true);
-    setError(null);
+    if (popup) setPopup(null);
     try {
       const r = await fetch(`${API}/mining/stop`, {
         method: "POST",
@@ -555,7 +614,7 @@ export default function Page() {
       await fetchMe(token);
       await fetchRigSlots(token);
     } catch (e: any) {
-      setError(e?.message || "Stop mining failed");
+      showError("Stop mining failed", e?.message || "Stop mining failed");
     } finally {
       setBusy(false);
     }
@@ -564,7 +623,7 @@ export default function Page() {
   async function claimToVault() {
     if (!token) return;
     setBusy(true);
-    setError(null);
+    if (popup) setPopup(null);
     try {
       const r = await fetch(`${API}/mining/claim`, {
         method: "POST",
@@ -580,7 +639,7 @@ export default function Page() {
         await fetchActivity(token);
       }
     } catch (e: any) {
-      setError(e?.message || "Claim failed");
+      showError("Claim failed", e?.message || "Claim failed");
     } finally {
       setBusy(false);
     }
@@ -589,7 +648,7 @@ export default function Page() {
   async function claimStarterRtx() {
     if (!token) return;
     setBusy(true);
-    setError(null);
+    if (popup) setPopup(null);
     try {
       const r = await fetch(`${API}/rigs/claim-starter-rtx`, {
         method: "POST",
@@ -609,14 +668,15 @@ export default function Page() {
       const latestInv = await fetch(`${API}/inventory`, { headers: { Authorization: `Bearer ${token}` } });
       const invJson = (await latestInv.json().catch(() => null)) as InventoryResponse | null;
       const items = invJson?.items || [];
-      const starter = items.find((x) => (x.source || "").toLowerCase() === "starter") || items.find((x) => x.gpuId === 1);
+      const starter =
+        items.find((x) => (x.source || "").toLowerCase() === "starter") || items.find((x) => x.gpuId === 1);
       if (starter?.userGpuId) {
         await equipGpu(1, starter.userGpuId, { silent: true });
       }
 
       await fetchRigSlots(token);
     } catch (e: any) {
-      setError(e?.message || "Starter RTX failed");
+      showError("Starter RTX failed", e?.message || "Starter RTX failed");
     } finally {
       setBusy(false);
     }
@@ -624,8 +684,10 @@ export default function Page() {
 
   async function buySlotWithCredits(slot: number) {
     if (!token) return;
+    if (blockIfMiningActive(`unlock Slot ${slot}`)) return;
+
     setBusy(true);
-    setError(null);
+    if (popup) setPopup(null);
     try {
       const r = await fetch(`${API}/market/buy-slot`, {
         method: "POST",
@@ -639,7 +701,7 @@ export default function Page() {
       await fetchMe(token);
       await fetchRigSlots(token);
     } catch (e: any) {
-      setError(e?.message || "Buy slot failed");
+      showError("Buy slot failed", e?.message || "Buy slot failed");
     } finally {
       setBusy(false);
     }
@@ -648,7 +710,7 @@ export default function Page() {
   async function openPack(pack: MarketPack) {
     if (!token) return;
     setOpeningPack({ pack });
-    setError(null);
+    if (popup) setPopup(null);
 
     setTimeout(async () => {
       try {
@@ -665,7 +727,7 @@ export default function Page() {
         await fetchMe(token);
         await fetchInventory(token);
       } catch (e: any) {
-        setError(e?.message || "Open pack failed");
+        showError("Open pack failed", e?.message || "Open pack failed");
       } finally {
         setOpeningPack(null);
       }
@@ -673,6 +735,8 @@ export default function Page() {
   }
 
   function openBuySlot(slotIndex: number) {
+    if (blockIfMiningActive(`buy Slot ${slotIndex}`)) return;
+
     const payouts = [10, 25, 50, 100, 250];
     const payoutHusd = payouts[slotIndex - 1] || 10;
 
@@ -684,8 +748,10 @@ export default function Page() {
 
   async function equipGpu(slotIndex: number, userGpuId: number, opts?: { silent?: boolean }) {
     if (!token) return;
+    if (blockIfMiningActive("equip GPUs")) return;
+
     setBusy(true);
-    setError(null);
+    if (popup) setPopup(null);
     try {
       const r = await fetch(`${API}/rigs/equip`, {
         method: "POST",
@@ -701,7 +767,7 @@ export default function Page() {
       await fetchRigSlots(token);
       await fetchMe(token);
     } catch (e: any) {
-      setError(e?.message || "Equip failed");
+      showError("Equip failed", e?.message || "Equip failed");
     } finally {
       setBusy(false);
     }
@@ -709,8 +775,10 @@ export default function Page() {
 
   async function unequipGpu(slotIndex: number) {
     if (!token) return;
+    if (blockIfMiningActive("unequip GPUs")) return;
+
     setBusy(true);
-    setError(null);
+    if (popup) setPopup(null);
     try {
       const r = await fetch(`${API}/rigs/unequip`, {
         method: "POST",
@@ -724,7 +792,7 @@ export default function Page() {
       await fetchRigSlots(token);
       await fetchMe(token);
     } catch (e: any) {
-      setError(e?.message || "Unequip failed");
+      showError("Unequip failed", e?.message || "Unequip failed");
     } finally {
       setBusy(false);
     }
@@ -736,9 +804,7 @@ export default function Page() {
       return (
         <button
           onClick={() => setTab(key)}
-          className={["flex-1 py-3 text-xs font-semibold", active ? "text-orange-400" : "text-zinc-400"].join(
-            " "
-          )}
+          className={["flex-1 py-3 text-xs font-semibold", active ? "text-orange-400" : "text-zinc-400"].join(" ")}
         >
           {label}
         </button>
@@ -758,7 +824,8 @@ export default function Page() {
   }
 
   function MiningTab() {
-    const slots = rigSlots ?? Array.from({ length: 5 }).map((_, i) => ({ slotIndex: i + 1, userGpuId: null, gpu: null }));
+    const slots =
+      rigSlots ?? Array.from({ length: 5 }).map((_, i) => ({ slotIndex: i + 1, userGpuId: null, gpu: null }));
     const equippedIds = new Set(slots.map((s) => s.userGpuId).filter(Boolean) as number[]);
     const availableForEquip = inv.filter((g) => !equippedIds.has(g.userGpuId));
 
@@ -780,7 +847,9 @@ export default function Page() {
               disabled={busy || !canClaim}
               className={[
                 "shrink-0 px-4 py-3 rounded-xl font-extrabold text-sm border",
-                canClaim ? "bg-orange-500 text-black border-orange-500" : "bg-orange-500/20 text-orange-200 border-orange-500/30",
+                canClaim
+                  ? "bg-orange-500 text-black border-orange-500"
+                  : "bg-orange-500/20 text-orange-200 border-orange-500/30",
                 "disabled:opacity-100 disabled:cursor-not-allowed",
               ].join(" ")}
               title={canClaim ? "Claim to Vault" : "Reach cap to claim"}
@@ -795,7 +864,9 @@ export default function Page() {
 
           <div className="flex items-center justify-between mt-2 text-xs">
             <div className="text-zinc-500">Cap: {fmtHusd8FromNano(me?.husd?.capNano || 0)}</div>
-            <div className={canClaim ? "text-orange-400 font-semibold" : "text-zinc-500"}>{canClaim ? "Cap reached ✓" : `${capPct}%`}</div>
+            <div className={canClaim ? "text-orange-400 font-semibold" : "text-zinc-500"}>
+              {canClaim ? "Cap reached ✓" : `${capPct}%`}
+            </div>
           </div>
 
           <div className="text-zinc-500 text-xs mt-2">
@@ -862,6 +933,7 @@ export default function Page() {
                   disabled={busy}
                   onClick={async () => {
                     if (!token) return;
+                    if (blockIfMiningActive("change GPUs")) return;
                     // ensure inventory loaded for picker
                     if (inv.length === 0 && !invLoading) await fetchInventory(token);
                     setEquipModal({ slotIndex });
@@ -875,9 +947,7 @@ export default function Page() {
             })}
           </div>
 
-          <div className="text-zinc-500 text-xs mt-3">
-            Tap an empty slot to equip a GPU. Tap an equipped slot to unequip.
-          </div>
+          <div className="text-zinc-500 text-xs mt-3">Tap an empty slot to equip a GPU. Tap an equipped slot to unequip.</div>
 
           <div className="mt-3 flex justify-end">
             <button
@@ -969,7 +1039,9 @@ export default function Page() {
               <div className="flex items-start justify-between">
                 <div>
                   <div className="font-bold text-lg">Equip GPU</div>
-                  <div className="text-zinc-400 text-sm mt-1">Select a GPU to equip into Slot {equipModal.slotIndex}.</div>
+                  <div className="text-zinc-400 text-sm mt-1">
+                    Select a GPU to equip into Slot {equipModal.slotIndex}.
+                  </div>
                 </div>
                 <button
                   onClick={() => setEquipModal(null)}
@@ -1021,7 +1093,9 @@ export default function Page() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between">
                             <div className="font-bold truncate">{g.name || `GPU #${g.gpuId}`}</div>
-                            <div className={`text-xs font-bold ${rarityColor(g.rarity)}`}>{(g.rarity || "common").toUpperCase()}</div>
+                            <div className={`text-xs font-bold ${rarityColor(g.rarity)}`}>
+                              {(g.rarity || "common").toUpperCase()}
+                            </div>
                           </div>
                           <div className="text-xs text-zinc-500 mt-1">
                             {g.mhps} MH/s • {fmtWhen(when)}
@@ -1034,9 +1108,7 @@ export default function Page() {
                 )}
               </div>
 
-              <div className="text-zinc-500 text-xs mt-3">
-                Tip: tapping an equipped slot will unequip it.
-              </div>
+              <div className="text-zinc-500 text-xs mt-3">Tip: tapping an equipped slot will unequip it.</div>
             </div>
           </div>
         )}
@@ -1146,10 +1218,8 @@ export default function Page() {
                     </div>
                   </div>
                   <div className="text-xs text-zinc-500 mt-1">
-                    Odds: C {Math.round((p.odds.common || 0) * 100)}% • U{" "}
-                    {Math.round((p.odds.uncommon || 0) * 100)}% • R{" "}
-                    {Math.round((p.odds.rare || 0) * 100)}% • E{" "}
-                    {Math.round((p.odds.epic || 0) * 100)}% • L{" "}
+                    Odds: C {Math.round((p.odds.common || 0) * 100)}% • U {Math.round((p.odds.uncommon || 0) * 100)}% •
+                    R {Math.round((p.odds.rare || 0) * 100)}% • E {Math.round((p.odds.epic || 0) * 100)}% • L{" "}
                     {Math.round((p.odds.legendary || 0) * 100)}%
                   </div>
                 </button>
@@ -1278,9 +1348,7 @@ export default function Page() {
             </div>
           )}
 
-          <div className="text-zinc-500 text-xs mt-3">
-            Power Score is based on your equipped GPUs (active slots).
-          </div>
+          <div className="text-zinc-500 text-xs mt-3">Power Score is based on your equipped GPUs (active slots).</div>
         </div>
       </div>
     );
@@ -1438,9 +1506,6 @@ export default function Page() {
             {toast}
           </div>
         )}
-
-        {/* Error */}
-        {error && <div className="mt-4 text-sm text-red-400">{error}</div>}
 
         {/* Username modal */}
         {token && showUsername && (
@@ -1605,6 +1670,14 @@ export default function Page() {
       </div>
 
       {token ? <BottomNav /> : null}
+
+      {/* ✅ Global Error Popup */}
+      <ErrorModal
+        open={!!popup}
+        title={popup?.title || "Error"}
+        message={popup?.message || "Something went wrong."}
+        onClose={() => setPopup(null)}
+      />
     </main>
   );
 }
