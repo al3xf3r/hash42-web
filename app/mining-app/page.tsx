@@ -8,7 +8,7 @@ const API = process.env.NEXT_PUBLIC_API_BASE!;
 
 type ActivityItem = {
   id: number;
-  amountNano: number;
+  amountNano: number; // can be +/-
   createdAt: string;
   note: string;
 };
@@ -50,9 +50,9 @@ type InventoryItem = {
   rarity: string;
   mhps: number;
   imagePath: string;
-  acquiredAt?: string; // ✅ backend
-  createdAt?: string; // (legacy)
-  source?: string; // ✅ backend includes this
+  acquiredAt?: string;
+  createdAt?: string;
+  source?: string;
 };
 
 type InventoryResponse = {
@@ -83,19 +83,21 @@ type RigSlotsResponse = {
 type MeResponse = {
   address: string;
   username?: string | null;
-  slotsUnlocked?: number; // 1..5
+  slotsUnlocked?: number;
   starterRtxGifted?: boolean;
-  powerScore?: number; // ✅ ACTIVE power
-  inventoryPowerScore?: number; // optional (debug)
-  beta?: {
-    symbol: string;
-    creditsNano: number;
+  powerScore?: number;
+  inventoryPowerScore?: number;
+  // ✅ single spendable currency (Vault Credits)
+  credits?: {
+    symbol: string; // "CREDITS"
+    balanceNano: number; // spendable
+    nanoPerUnit?: string;
   };
   husd?: {
     symbol: string;
     balanceNano: number;
     capNano: number;
-    vaultNano?: number;
+    vaultNano?: number; // still returned for compatibility; equals credits.balanceNano
     totalClaimedNano: number;
   };
   mining?: {
@@ -129,8 +131,8 @@ function fmtHusd8FromNano(nano?: number) {
   return husd.toFixed(8);
 }
 
-function fmtCreditsFromNano(nano?: number) {
-  const v = Number(nano || 0) / 1e8;
+function fmtCredits2FromNano(nano?: number) {
+  const v = Math.abs(Number(nano || 0)) / 1e8;
   return v.toFixed(2);
 }
 
@@ -194,7 +196,7 @@ function ErrorModal({
           </button>
         </div>
 
-        <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-200 leading-relaxed">
+        <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-200 leading-relaxed whitespace-pre-line">
           {message}
         </div>
 
@@ -222,7 +224,6 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // ✅ Popup errors
   const [popup, setPopup] = useState<PopupState>(null);
 
   const [showUsername, setShowUsername] = useState(false);
@@ -235,38 +236,30 @@ export default function Page() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
-  // Starter RTX onboarding modal
   const [showStarterRtx, setShowStarterRtx] = useState(false);
   const [starterStep, setStarterStep] = useState<0 | 1 | 2>(0);
 
-  // Leaderboard
   const [lb, setLb] = useState<LeaderboardResponse | null>(null);
   const [lbLoading, setLbLoading] = useState(false);
 
-  // Marketplace
   const [market, setMarket] = useState<MarketConfig | null>(null);
   const [marketLoading, setMarketLoading] = useState(false);
   const [openingPack, setOpeningPack] = useState<null | { pack: MarketPack }>(null);
   const [reveal, setReveal] = useState<null | { packName: string; reward: InventoryItem | any }>(null);
 
-  // Inventory (for marketplace view + equip picker)
   const [inv, setInv] = useState<InventoryItem[]>([]);
   const [invLoading, setInvLoading] = useState(false);
 
-  // Rig slots
   const [rigSlots, setRigSlots] = useState<RigSlot[] | null>(null);
   const [rigSlotsLoading, setRigSlotsLoading] = useState(false);
 
-  // Equip modal
   const [equipModal, setEquipModal] = useState<null | { slotIndex: number }>(null);
 
-  // tick
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // restore session
   useEffect(() => {
     const t = localStorage.getItem("hash42_token");
     const a = localStorage.getItem("hash42_address");
@@ -279,19 +272,16 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // auto-hide toast
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2200);
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Keep UI mining balance in sync with server balance
   useEffect(() => {
     setUiMiningBalanceNano(Number(me?.husd?.balanceNano || 0));
   }, [me?.husd?.balanceNano]);
 
-  // While mining is active, animate + refresh
   useEffect(() => {
     if (!token) return;
     if (!me?.mining?.active) return;
@@ -312,7 +302,6 @@ export default function Page() {
     };
   }, [token, me?.mining?.active, me?.mining?.rateNanoPerSec]);
 
-  // Load activity when opening Vault tab
   useEffect(() => {
     if (!token) return;
     if (tab !== "vault") return;
@@ -320,7 +309,6 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, token]);
 
-  // Load leaderboard
   useEffect(() => {
     if (!token) return;
     if (tab !== "leaderboard") return;
@@ -328,7 +316,6 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, token]);
 
-  // Load marketplace config + inventory
   useEffect(() => {
     if (!token) return;
     if (tab !== "marketplace") return;
@@ -337,7 +324,6 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, token]);
 
-  // Load slots on Mining tab
   useEffect(() => {
     if (!token) return;
     if (tab !== "mining") return;
@@ -360,7 +346,10 @@ export default function Page() {
   }, [endsAtMs, now, me?.mining?.secondsLeft]);
 
   const sessionTotalSec = Number(me?.mining?.sessionSeconds || 86400);
-  const sessionLeftPct = useMemo(() => clampPct(Math.round((secondsLeft / sessionTotalSec) * 100)), [secondsLeft, sessionTotalSec]);
+  const sessionLeftPct = useMemo(
+    () => clampPct(Math.round((secondsLeft / sessionTotalSec) * 100)),
+    [secondsLeft, sessionTotalSec]
+  );
 
   const capNano = Number(me?.husd?.capNano || 0);
 
@@ -372,20 +361,21 @@ export default function Page() {
   const slotsUnlocked = Math.max(1, Math.min(5, Number(me?.slotsUnlocked || 1)));
 
   const miningBalanceNano = Number(me?.husd?.balanceNano || 0);
-  const vaultNano = Number(me?.husd?.vaultNano || 0);
+
+  // ✅ Single spendable currency
+  const creditsNano =
+    Number(me?.credits?.balanceNano ?? 0) || Number(me?.husd?.vaultNano ?? 0) || 0;
+  const creditsSymbol = me?.credits?.symbol || "CREDITS";
+
+  const vaultNano = creditsNano; // alias for UI naming
   const totalClaimedNano = Number(me?.husd?.totalClaimedNano || 0);
 
-  const creditsNano = Number(me?.beta?.creditsNano || 0);
-  const creditsSymbol = me?.beta?.symbol || "CREDITS";
-
-  // Claim ONLY when server balance reached cap
   const canClaim = capNano > 0 && miningBalanceNano >= capNano;
 
   function showError(title: string, message: string) {
     setPopup({ title, message });
   }
 
-  // ✅ Frontend rule: while mining is active, rig changes are blocked
   function blockIfMiningActive(actionLabel: string) {
     if (!miningActive) return false;
     showError(
@@ -476,7 +466,6 @@ export default function Page() {
       setUsernameDraft("");
     }
 
-    // Starter RTX onboarding
     if (j && j.starterRtxGifted === false) {
       setShowStarterRtx(true);
       setStarterStep(0);
@@ -660,11 +649,9 @@ export default function Page() {
       setShowStarterRtx(false);
       setToast("RTX Classic received");
 
-      // refresh
       await fetchMe(token);
       await fetchInventory(token);
 
-      // auto-equip starter into slot 1 (best effort)
       const latestInv = await fetch(`${API}/inventory`, { headers: { Authorization: `Bearer ${token}` } });
       const invJson = (await latestInv.json().catch(() => null)) as InventoryResponse | null;
       const items = invJson?.items || [];
@@ -700,6 +687,7 @@ export default function Page() {
       setToast(j.alreadyUnlocked ? "Already unlocked" : `Slot ${slot} unlocked`);
       await fetchMe(token);
       await fetchRigSlots(token);
+      if (tab === "vault") await fetchActivity(token);
     } catch (e: any) {
       showError("Buy slot failed", e?.message || "Buy slot failed");
     } finally {
@@ -726,6 +714,7 @@ export default function Page() {
         setToast("Pack opened");
         await fetchMe(token);
         await fetchInventory(token);
+        if (tab === "vault") await fetchActivity(token);
       } catch (e: any) {
         showError("Open pack failed", e?.message || "Open pack failed");
       } finally {
@@ -831,7 +820,6 @@ export default function Page() {
 
     return (
       <div className="space-y-4">
-        {/* Mining Balance header + Claim */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -870,11 +858,10 @@ export default function Page() {
           </div>
 
           <div className="text-zinc-500 text-xs mt-2">
-            Claim is available only at 100% cap. Claim moves funds to Vault (beta: no withdrawals).
+            Claim is available only at 100% cap. Claim moves funds to Vault Credits (beta: no withdrawals).
           </div>
         </div>
 
-        {/* GPU Slots */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="font-bold">GPU Slots</div>
@@ -889,7 +876,6 @@ export default function Page() {
               const unlocked = slotIndex <= slotsUnlocked;
               const slot = slots.find((s) => s.slotIndex === slotIndex) || { slotIndex, userGpuId: null, gpu: null };
 
-              // locked slot
               if (!unlocked) {
                 return (
                   <button
@@ -903,7 +889,6 @@ export default function Page() {
                 );
               }
 
-              // equipped
               if (slot.userGpuId && slot.gpu) {
                 return (
                   <button
@@ -926,7 +911,6 @@ export default function Page() {
                 );
               }
 
-              // empty but unlocked
               return (
                 <button
                   key={slotIndex}
@@ -934,7 +918,6 @@ export default function Page() {
                   onClick={async () => {
                     if (!token) return;
                     if (blockIfMiningActive("change GPUs")) return;
-                    // ensure inventory loaded for picker
                     if (inv.length === 0 && !invLoading) await fetchInventory(token);
                     setEquipModal({ slotIndex });
                   }}
@@ -960,7 +943,6 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Mining Session */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between">
             <div className="font-bold">Mining Session</div>
@@ -987,11 +969,10 @@ export default function Page() {
               <div className="h-full bg-green-500 transition-all" style={{ width: `${sessionLeftPct}%` }} />
             </div>
 
-            <div className="text-zinc-500 text-xs mt-3">Reach 100% cap to enable Claim. Claim moves funds to Vault.</div>
+            <div className="text-zinc-500 text-xs mt-3">Reach 100% cap to enable Claim. Claim moves funds to Vault Credits.</div>
           </div>
         </div>
 
-        {/* Funds */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between">
             <div className="font-bold">Funds</div>
@@ -1011,8 +992,8 @@ export default function Page() {
               <span className="font-bold">{fmtHusd8FromNano(miningBalanceNano)} HUSD</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-400">Vault balance</span>
-              <span className="font-bold">{fmtHusd8FromNano(vaultNano)} HUSD</span>
+              <span className="text-zinc-400">Vault credits</span>
+              <span className="font-bold">{fmtCredits2FromNano(vaultNano)} {creditsSymbol}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-400">Total claimed</span>
@@ -1020,19 +1001,11 @@ export default function Page() {
             </div>
           </div>
 
-          <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-zinc-400">Beta credits</span>
-              <span className="font-bold">
-                {fmtCreditsFromNano(creditsNano)} {creditsSymbol}
-              </span>
-            </div>
+          <div className="text-zinc-500 text-xs mt-3">
+            Vault Credits are spendable in Marketplace (slots + packs). Vault is locked during beta (no withdrawals).
           </div>
-
-          <div className="text-zinc-500 text-xs mt-3">Beta credits are used only in Marketplace. Vault is locked during beta.</div>
         </div>
 
-        {/* Equip Modal */}
         {equipModal && (
           <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center p-4 z-50">
             <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
@@ -1122,16 +1095,15 @@ export default function Page() {
 
     return (
       <div className="space-y-4">
-        {/* Credits header */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-zinc-400 text-xs">Beta Credits</div>
+              <div className="text-zinc-400 text-xs">Vault Credits</div>
               <div className="mt-1 text-2xl font-extrabold">
-                {fmtCreditsFromNano(creditsNano)}{" "}
+                {fmtCredits2FromNano(creditsNano)}{" "}
                 <span className="text-zinc-400 text-sm font-semibold">{creditsSymbol}</span>
               </div>
-              <div className="text-zinc-500 text-xs mt-1">Use credits to unlock slots and open packs (beta only).</div>
+              <div className="text-zinc-500 text-xs mt-1">Use credits to unlock slots and open packs (beta).</div>
             </div>
 
             <button
@@ -1144,7 +1116,6 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Unlock slots */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="font-bold text-lg">Unlock Slots</div>
           <div className="text-zinc-400 text-sm mt-1">Unlock in order. Slots increase your mining cap.</div>
@@ -1181,7 +1152,6 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Packs */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -1228,11 +1198,10 @@ export default function Page() {
           </div>
 
           <div className="text-zinc-500 text-xs mt-3">
-            Rewards are stored off-chain in your inventory (beta). Later this will become on-chain / real economy.
+            Rewards are stored off-chain in your inventory (beta). Later this can become on-chain / real economy.
           </div>
         </div>
 
-        {/* Inventory preview */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between">
             <div className="font-bold text-lg">Inventory</div>
@@ -1358,13 +1327,13 @@ export default function Page() {
     return (
       <div className="space-y-4">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <div className="text-zinc-400 text-xs">Vault Balance</div>
+          <div className="text-zinc-400 text-xs">Vault Credits</div>
           <div className="mt-1 text-3xl font-extrabold tracking-tight">
-            {fmtHusd8FromNano(vaultNano)}{" "}
-            <span className="text-zinc-400 text-sm font-semibold">{me?.husd?.symbol || "HUSD"}</span>
+            {fmtCredits2FromNano(vaultNano)}{" "}
+            <span className="text-zinc-400 text-sm font-semibold">{creditsSymbol}</span>
           </div>
 
-          <div className="text-zinc-500 text-xs mt-2">Beta: Vault is locked (no withdrawals). Claim moves funds here.</div>
+          <div className="text-zinc-500 text-xs mt-2">Beta: Vault is locked (no withdrawals). Credits are spendable in Marketplace.</div>
 
           <div className="mt-3 flex gap-2">
             <button
@@ -1423,31 +1392,33 @@ export default function Page() {
             ) : activity.length === 0 ? (
               <div className="text-zinc-500 text-sm">No activity yet.</div>
             ) : (
-              activity.map((it) => (
-                <div key={it.id} className="rounded-xl border border-zinc-800 bg-black/30 p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-zinc-200">+{fmtHusd8FromNano(it.amountNano)} HUSD</div>
-                    <div className="text-xs text-zinc-500">{fmtWhen(it.createdAt)}</div>
+              activity.map((it) => {
+                const sign = it.amountNano >= 0 ? "+" : "-";
+                return (
+                  <div key={it.id} className="rounded-xl border border-zinc-800 bg-black/30 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-zinc-200">
+                        {sign}
+                        {fmtCredits2FromNano(it.amountNano)} {creditsSymbol}
+                      </div>
+                      <div className="text-xs text-zinc-500">{fmtWhen(it.createdAt)}</div>
+                    </div>
+                    <div className="text-xs text-zinc-500 mt-1">{it.note || "ledger"}</div>
                   </div>
-                  <div className="text-xs text-zinc-500 mt-1">{it.note || "vault_credit"}</div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
-          <div className="text-zinc-500 text-xs mt-3">Activity tracks your Vault credits during beta.</div>
+          <div className="text-zinc-500 text-xs mt-3">Activity tracks all Vault Credits movements (grant, claim, purchases).</div>
         </div>
       </div>
     );
   }
 
-  // ---------------------------
-  // UI
-  // ---------------------------
   return (
     <main className="min-h-screen bg-black text-white">
       <div className="max-w-md mx-auto p-4 pb-24">
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="text-orange-500 font-extrabold text-xl">Hash42</div>
@@ -1465,15 +1436,39 @@ export default function Page() {
           ) : null}
         </div>
 
-        {/* Auth */}
+        {/* Auth: Connect screen with hero */}
         {!address && (
-          <button onClick={connectWallet} className="w-full py-3 rounded-xl bg-orange-500 text-black font-bold">
-            Connect Wallet
-          </button>
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-orange-500/40 bg-zinc-950 overflow-hidden">
+              <img
+                src="/assets/hero-hash42-miningapp.webp"
+                alt="Hash42 Mining App"
+                className="w-full h-[44vh] object-cover"
+                draggable={false}
+              />
+            </div>
+
+            <button onClick={connectWallet} className="w-full py-4 rounded-2xl bg-orange-500 text-black font-extrabold">
+              Connect Wallet
+            </button>
+
+            <div className="text-center text-zinc-500 text-xs">
+              Mobile-first beta. Connect your wallet to start.
+            </div>
+          </div>
         )}
 
         {address && !token && (
           <div className="space-y-3">
+            <div className="rounded-2xl border border-orange-500/20 bg-zinc-950 overflow-hidden">
+              <img
+                src="/assets/hero-hash42-miningapp.webp"
+                alt="Hash42 Mining App"
+                className="w-full h-[28vh] object-cover"
+                draggable={false}
+              />
+            </div>
+
             <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
               <div className="text-zinc-400 text-xs">Wallet</div>
               <div className="font-mono">{shortAddr(address)}</div>
@@ -1483,14 +1478,13 @@ export default function Page() {
             <button
               onClick={login}
               disabled={busy}
-              className="w-full py-3 rounded-xl bg-orange-500 text-black font-bold disabled:opacity-50"
+              className="w-full py-4 rounded-2xl bg-orange-500 text-black font-extrabold disabled:opacity-50"
             >
               {busy ? "Signing..." : "Login"}
             </button>
           </div>
         )}
 
-        {/* App */}
         {token && (
           <div className="space-y-4">
             {tab === "mining" && <MiningTab />}
@@ -1500,14 +1494,12 @@ export default function Page() {
           </div>
         )}
 
-        {/* Toast */}
         {toast && (
           <div className="fixed left-1/2 -translate-x-1/2 bottom-24 px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-sm">
             {toast}
           </div>
         )}
 
-        {/* Username modal */}
         {token && showUsername && (
           <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center p-4">
             <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
@@ -1545,7 +1537,6 @@ export default function Page() {
           </div>
         )}
 
-        {/* Pack opening overlay */}
         {token && openingPack && (
           <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
             <div className="w-full max-w-md rounded-2xl border border-orange-500/30 bg-zinc-950 p-4 relative overflow-hidden">
@@ -1563,7 +1554,6 @@ export default function Page() {
           </div>
         )}
 
-        {/* Reveal modal */}
         {token && reveal && (
           <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
             <div className="w-full max-w-md rounded-2xl border border-orange-500/30 bg-zinc-950 p-4 relative overflow-hidden">
@@ -1601,7 +1591,6 @@ export default function Page() {
           </div>
         )}
 
-        {/* Starter RTX Onboarding */}
         {token && showStarterRtx && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
             <div className="w-full max-w-md rounded-2xl border border-orange-500/30 bg-zinc-950 p-4 overflow-hidden relative">
@@ -1671,7 +1660,6 @@ export default function Page() {
 
       {token ? <BottomNav /> : null}
 
-      {/* ✅ Global Error Popup */}
       <ErrorModal
         open={!!popup}
         title={popup?.title || "Error"}
