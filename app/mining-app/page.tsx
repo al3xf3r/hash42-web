@@ -50,7 +50,9 @@ type InventoryItem = {
   rarity: string;
   mhps: number;
   imagePath: string;
-  createdAt: string;
+  acquiredAt?: string; // ✅ backend
+  createdAt?: string; // (legacy)
+  source?: string; // ✅ backend includes this
 };
 
 type InventoryResponse = {
@@ -58,12 +60,33 @@ type InventoryResponse = {
   items: InventoryItem[];
 };
 
+type RigSlotGpu = {
+  gpuId: number;
+  name: string;
+  rarity: string;
+  mhps: number;
+  imagePath: string;
+};
+
+type RigSlot = {
+  slotIndex: number;
+  userGpuId: number | null;
+  gpu: RigSlotGpu | null;
+};
+
+type RigSlotsResponse = {
+  ok: boolean;
+  slotsUnlocked: number;
+  slots: RigSlot[];
+};
+
 type MeResponse = {
   address: string;
   username?: string | null;
   slotsUnlocked?: number; // 1..5
   starterRtxGifted?: boolean;
-  powerScore?: number;
+  powerScore?: number; // ✅ ACTIVE power
+  inventoryPowerScore?: number; // optional (debug)
   beta?: {
     symbol: string;
     creditsNano: number;
@@ -113,7 +136,10 @@ function fmtTime(sec: number) {
   const hh = Math.floor(s / 3600);
   const mm = Math.floor((s % 3600) / 60);
   const ss = s % 60;
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(
+    2,
+    "0"
+  )}`;
 }
 
 function fmtWhen(iso?: string) {
@@ -155,7 +181,9 @@ export default function Page() {
 
   const [uiMiningBalanceNano, setUiMiningBalanceNano] = useState<number>(0);
 
-  const [slotModal, setSlotModal] = useState<null | { slotIndex: number; payoutHusd: number; priceUsd: number }>(null);
+  const [slotModal, setSlotModal] = useState<null | { slotIndex: number; payoutHusd: number; priceUsd: number }>(
+    null
+  );
 
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -174,9 +202,16 @@ export default function Page() {
   const [openingPack, setOpeningPack] = useState<null | { pack: MarketPack }>(null);
   const [reveal, setReveal] = useState<null | { packName: string; reward: InventoryItem | any }>(null);
 
-  // Inventory (for marketplace view)
+  // Inventory (for marketplace view + equip picker)
   const [inv, setInv] = useState<InventoryItem[]>([]);
   const [invLoading, setInvLoading] = useState(false);
+
+  // Rig slots
+  const [rigSlots, setRigSlots] = useState<RigSlot[] | null>(null);
+  const [rigSlotsLoading, setRigSlotsLoading] = useState(false);
+
+  // Equip modal
+  const [equipModal, setEquipModal] = useState<null | { slotIndex: number }>(null);
 
   // tick
   useEffect(() => {
@@ -192,6 +227,7 @@ export default function Page() {
       setToken(t);
       setAddress(a);
       fetchMe(t).catch(() => {});
+      fetchRigSlots(t).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -220,6 +256,7 @@ export default function Page() {
 
     const refresh = setInterval(() => {
       fetchMe(token).catch(() => {});
+      fetchRigSlots(token).catch(() => {});
     }, 15000);
 
     return () => {
@@ -250,6 +287,14 @@ export default function Page() {
     if (tab !== "marketplace") return;
     fetchMarketConfig(token).catch(() => {});
     fetchInventory(token).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, token]);
+
+  // Load slots on Mining tab
+  useEffect(() => {
+    if (!token) return;
+    if (tab !== "mining") return;
+    fetchRigSlots(token).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, token]);
 
@@ -339,6 +384,7 @@ export default function Page() {
       setToken(v.token);
 
       await fetchMe(v.token);
+      await fetchRigSlots(v.token);
       setToast("Logged in");
     } catch (e: any) {
       setError(e?.message || "Login failed");
@@ -355,6 +401,8 @@ export default function Page() {
     setProvider(null);
     setMe(null);
     setActivity([]);
+    setRigSlots(null);
+    setEquipModal(null);
     setToast("Logged out");
   }
 
@@ -375,6 +423,18 @@ export default function Page() {
       setStarterStep(0);
       setTimeout(() => setStarterStep(1), 400);
       setTimeout(() => setStarterStep(2), 900);
+    }
+  }
+
+  async function fetchRigSlots(t: string) {
+    setRigSlotsLoading(true);
+    try {
+      const r = await fetch(`${API}/rigs/slots`, { headers: { Authorization: `Bearer ${t}` } });
+      const j = (await r.json().catch(() => null)) as RigSlotsResponse | null;
+      if (!r.ok || !j?.ok) return;
+      setRigSlots(Array.isArray(j.slots) ? j.slots : null);
+    } finally {
+      setRigSlotsLoading(false);
     }
   }
 
@@ -426,9 +486,9 @@ export default function Page() {
       const r = await fetch(`${API}/inventory`, {
         headers: { Authorization: `Bearer ${t}` },
       });
-      const j = await r.json().catch(() => null);
+      const j = (await r.json().catch(() => null)) as InventoryResponse | null;
       if (!r.ok) return;
-      setInv(Array.isArray(j?.items) ? j.items : []);
+      setInv(Array.isArray(j?.items) ? j!.items : []);
     } finally {
       setInvLoading(false);
     }
@@ -471,6 +531,7 @@ export default function Page() {
 
       setToast("Mining started");
       await fetchMe(token);
+      await fetchRigSlots(token);
     } catch (e: any) {
       setError(e?.message || "Start mining failed");
     } finally {
@@ -492,6 +553,7 @@ export default function Page() {
 
       setToast("Mining stopped");
       await fetchMe(token);
+      await fetchRigSlots(token);
     } catch (e: any) {
       setError(e?.message || "Stop mining failed");
     } finally {
@@ -538,8 +600,21 @@ export default function Page() {
 
       setShowStarterRtx(false);
       setToast("RTX Classic received");
+
+      // refresh
       await fetchMe(token);
       await fetchInventory(token);
+
+      // auto-equip starter into slot 1 (best effort)
+      const latestInv = await fetch(`${API}/inventory`, { headers: { Authorization: `Bearer ${token}` } });
+      const invJson = (await latestInv.json().catch(() => null)) as InventoryResponse | null;
+      const items = invJson?.items || [];
+      const starter = items.find((x) => (x.source || "").toLowerCase() === "starter") || items.find((x) => x.gpuId === 1);
+      if (starter?.userGpuId) {
+        await equipGpu(1, starter.userGpuId, { silent: true });
+      }
+
+      await fetchRigSlots(token);
     } catch (e: any) {
       setError(e?.message || "Starter RTX failed");
     } finally {
@@ -562,6 +637,7 @@ export default function Page() {
 
       setToast(j.alreadyUnlocked ? "Already unlocked" : `Slot ${slot} unlocked`);
       await fetchMe(token);
+      await fetchRigSlots(token);
     } catch (e: any) {
       setError(e?.message || "Buy slot failed");
     } finally {
@@ -574,7 +650,6 @@ export default function Page() {
     setOpeningPack({ pack });
     setError(null);
 
-    // small staged reveal animation
     setTimeout(async () => {
       try {
         const r = await fetch(`${API}/market/open-pack`, {
@@ -607,16 +682,63 @@ export default function Page() {
     setSlotModal({ slotIndex, payoutHusd, priceUsd });
   }
 
+  async function equipGpu(slotIndex: number, userGpuId: number, opts?: { silent?: boolean }) {
+    if (!token) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`${API}/rigs/equip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ slotIndex, userGpuId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "equip_failed");
+
+      if (!opts?.silent) setToast(`Equipped in slot ${slotIndex}`);
+      setEquipModal(null);
+
+      await fetchRigSlots(token);
+      await fetchMe(token);
+    } catch (e: any) {
+      setError(e?.message || "Equip failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unequipGpu(slotIndex: number) {
+    if (!token) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`${API}/rigs/unequip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ slotIndex }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "unequip_failed");
+
+      setToast(`Unequipped slot ${slotIndex}`);
+      await fetchRigSlots(token);
+      await fetchMe(token);
+    } catch (e: any) {
+      setError(e?.message || "Unequip failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function BottomNav() {
     const item = (key: TabKey, label: string) => {
       const active = tab === key;
       return (
         <button
           onClick={() => setTab(key)}
-          className={[
-            "flex-1 py-3 text-xs font-semibold",
-            active ? "text-orange-400" : "text-zinc-400",
-          ].join(" ")}
+          className={["flex-1 py-3 text-xs font-semibold", active ? "text-orange-400" : "text-zinc-400"].join(
+            " "
+          )}
         >
           {label}
         </button>
@@ -636,6 +758,10 @@ export default function Page() {
   }
 
   function MiningTab() {
+    const slots = rigSlots ?? Array.from({ length: 5 }).map((_, i) => ({ slotIndex: i + 1, userGpuId: null, gpu: null }));
+    const equippedIds = new Set(slots.map((s) => s.userGpuId).filter(Boolean) as number[]);
+    const availableForEquip = inv.filter((g) => !equippedIds.has(g.userGpuId));
+
     return (
       <div className="space-y-4">
         {/* Mining Balance header + Claim */}
@@ -654,9 +780,7 @@ export default function Page() {
               disabled={busy || !canClaim}
               className={[
                 "shrink-0 px-4 py-3 rounded-xl font-extrabold text-sm border",
-                canClaim
-                  ? "bg-orange-500 text-black border-orange-500"
-                  : "bg-orange-500/20 text-orange-200 border-orange-500/30",
+                canClaim ? "bg-orange-500 text-black border-orange-500" : "bg-orange-500/20 text-orange-200 border-orange-500/30",
                 "disabled:opacity-100 disabled:cursor-not-allowed",
               ].join(" ")}
               title={canClaim ? "Claim to Vault" : "Reach cap to claim"}
@@ -671,9 +795,7 @@ export default function Page() {
 
           <div className="flex items-center justify-between mt-2 text-xs">
             <div className="text-zinc-500">Cap: {fmtHusd8FromNano(me?.husd?.capNano || 0)}</div>
-            <div className={canClaim ? "text-orange-400 font-semibold" : "text-zinc-500"}>
-              {canClaim ? "Cap reached ✓" : `${capPct}%`}
-            </div>
+            <div className={canClaim ? "text-orange-400 font-semibold" : "text-zinc-500"}>{canClaim ? "Cap reached ✓" : `${capPct}%`}</div>
           </div>
 
           <div className="text-zinc-500 text-xs mt-2">
@@ -685,59 +807,86 @@ export default function Page() {
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="font-bold">GPU Slots</div>
-            <div className="text-xs text-zinc-500">Power: <span className="text-orange-400 font-semibold">{Number(me?.powerScore || 0)}</span></div>
+            <div className="text-xs text-zinc-500">
+              Power: <span className="text-orange-400 font-semibold">{Number(me?.powerScore || 0)}</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-5 gap-2">
             {Array.from({ length: 5 }).map((_, i) => {
               const slotIndex = i + 1;
               const unlocked = slotIndex <= slotsUnlocked;
-              const isFreeGpu = slotIndex === 1;
+              const slot = slots.find((s) => s.slotIndex === slotIndex) || { slotIndex, userGpuId: null, gpu: null };
 
-              if (isFreeGpu) {
+              // locked slot
+              if (!unlocked) {
                 return (
-                  <div
+                  <button
                     key={slotIndex}
-                    className="aspect-square rounded-xl border border-orange-500/60 bg-orange-500/10 overflow-hidden"
-                    title="RTX Classic — 1 MH/s"
+                    onClick={() => openBuySlot(slotIndex)}
+                    className="aspect-square rounded-xl border border-zinc-800 bg-black/30 flex items-center justify-center text-xl text-zinc-500 hover:bg-zinc-900"
+                    title="Buy slot"
+                  >
+                    +
+                  </button>
+                );
+              }
+
+              // equipped
+              if (slot.userGpuId && slot.gpu) {
+                return (
+                  <button
+                    key={slotIndex}
+                    onClick={() => unequipGpu(slotIndex)}
+                    disabled={busy}
+                    className="aspect-square rounded-xl border border-orange-500/40 bg-orange-500/10 overflow-hidden relative"
+                    title={`Unequip: ${slot.gpu.name} (${slot.gpu.mhps} MH/s)`}
                   >
                     <img
-                      src="/assets/rtx-classic.webp"
-                      alt="RTX Classic"
+                      src={slot.gpu.imagePath || "/assets/rtx-classic.webp"}
+                      alt={slot.gpu.name || "GPU"}
                       className="w-full h-full object-cover"
                       draggable={false}
                     />
-                  </div>
+                    <div className="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded-md bg-black/60 border border-zinc-700">
+                      {slot.gpu.mhps} MH/s
+                    </div>
+                  </button>
                 );
               }
 
-              if (unlocked) {
-                return (
-                  <div
-                    key={slotIndex}
-                    className="aspect-square rounded-xl border border-zinc-700 bg-black/30 flex items-center justify-center text-[10px] text-zinc-300"
-                    title="Unlocked slot (beta)"
-                  >
-                    Empty
-                  </div>
-                );
-              }
-
+              // empty but unlocked
               return (
                 <button
                   key={slotIndex}
-                  onClick={() => openBuySlot(slotIndex)}
-                  className="aspect-square rounded-xl border border-zinc-800 bg-black/30 flex items-center justify-center text-xl text-zinc-500 hover:bg-zinc-900"
-                  title="Buy slot"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!token) return;
+                    // ensure inventory loaded for picker
+                    if (inv.length === 0 && !invLoading) await fetchInventory(token);
+                    setEquipModal({ slotIndex });
+                  }}
+                  className="aspect-square rounded-xl border border-zinc-700 bg-black/30 flex items-center justify-center text-[10px] text-zinc-300 hover:bg-zinc-900"
+                  title="Equip GPU"
                 >
-                  +
+                  Empty
                 </button>
               );
             })}
           </div>
 
           <div className="text-zinc-500 text-xs mt-3">
-            Slot 1 is gifted (RTX Classic • 1 MH/s). Slots 2–5 can be unlocked from Marketplace using Credits.
+            Tap an empty slot to equip a GPU. Tap an equipped slot to unequip.
+          </div>
+
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={() => token && fetchRigSlots(token)}
+              disabled={busy || rigSlotsLoading}
+              className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+            >
+              {rigSlotsLoading ? "..." : "Sync Slots"}
+            </button>
           </div>
         </div>
 
@@ -768,9 +917,7 @@ export default function Page() {
               <div className="h-full bg-green-500 transition-all" style={{ width: `${sessionLeftPct}%` }} />
             </div>
 
-            <div className="text-zinc-500 text-xs mt-3">
-              Reach 100% cap to enable Claim. Claim moves funds to Vault.
-            </div>
+            <div className="text-zinc-500 text-xs mt-3">Reach 100% cap to enable Claim. Claim moves funds to Vault.</div>
           </div>
         </div>
 
@@ -806,14 +953,93 @@ export default function Page() {
           <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm">
             <div className="flex justify-between">
               <span className="text-zinc-400">Beta credits</span>
-              <span className="font-bold">{fmtCreditsFromNano(creditsNano)} {creditsSymbol}</span>
+              <span className="font-bold">
+                {fmtCreditsFromNano(creditsNano)} {creditsSymbol}
+              </span>
             </div>
           </div>
 
-          <div className="text-zinc-500 text-xs mt-3">
-            Beta credits are used only in Marketplace. Vault is locked during beta.
-          </div>
+          <div className="text-zinc-500 text-xs mt-3">Beta credits are used only in Marketplace. Vault is locked during beta.</div>
         </div>
+
+        {/* Equip Modal */}
+        {equipModal && (
+          <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center p-4 z-50">
+            <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="font-bold text-lg">Equip GPU</div>
+                  <div className="text-zinc-400 text-sm mt-1">Select a GPU to equip into Slot {equipModal.slotIndex}.</div>
+                </div>
+                <button
+                  onClick={() => setEquipModal(null)}
+                  className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-3">
+                <button
+                  onClick={() => token && fetchInventory(token)}
+                  disabled={busy || invLoading}
+                  className="w-full text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+                >
+                  {invLoading ? "Loading..." : "Sync inventory"}
+                </button>
+              </div>
+
+              <div className="mt-3 space-y-2 max-h-[55vh] overflow-auto pr-1">
+                {invLoading ? (
+                  <>
+                    <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
+                    <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
+                    <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
+                  </>
+                ) : availableForEquip.length === 0 ? (
+                  <div className="text-zinc-500 text-sm">
+                    No available GPUs to equip. (If all are already equipped, unequip one first.)
+                  </div>
+                ) : (
+                  availableForEquip.map((g) => {
+                    const when = g.acquiredAt || g.createdAt;
+                    return (
+                      <button
+                        key={g.userGpuId}
+                        onClick={() => equipGpu(equipModal.slotIndex, g.userGpuId)}
+                        disabled={busy}
+                        className="w-full rounded-xl border border-zinc-800 bg-black/30 hover:bg-zinc-900 p-3 flex gap-3 text-left disabled:opacity-50"
+                      >
+                        <div className="w-14 h-14 rounded-lg overflow-hidden border border-zinc-800 bg-black">
+                          <img
+                            src={g.imagePath || "/assets/rtx-classic.webp"}
+                            alt={g.name || "GPU"}
+                            className="w-full h-full object-cover"
+                            draggable={false}
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold truncate">{g.name || `GPU #${g.gpuId}`}</div>
+                            <div className={`text-xs font-bold ${rarityColor(g.rarity)}`}>{(g.rarity || "common").toUpperCase()}</div>
+                          </div>
+                          <div className="text-xs text-zinc-500 mt-1">
+                            {g.mhps} MH/s • {fmtWhen(when)}
+                            {g.source ? ` • ${g.source}` : ""}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="text-zinc-500 text-xs mt-3">
+                Tip: tapping an equipped slot will unequip it.
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -830,11 +1056,10 @@ export default function Page() {
             <div>
               <div className="text-zinc-400 text-xs">Beta Credits</div>
               <div className="mt-1 text-2xl font-extrabold">
-                {fmtCreditsFromNano(creditsNano)} <span className="text-zinc-400 text-sm font-semibold">{creditsSymbol}</span>
+                {fmtCreditsFromNano(creditsNano)}{" "}
+                <span className="text-zinc-400 text-sm font-semibold">{creditsSymbol}</span>
               </div>
-              <div className="text-zinc-500 text-xs mt-1">
-                Use credits to unlock slots and open packs (beta only).
-              </div>
+              <div className="text-zinc-500 text-xs mt-1">Use credits to unlock slots and open packs (beta only).</div>
             </div>
 
             <button
@@ -916,10 +1141,16 @@ export default function Page() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-extrabold">{p.name}</div>
-                    <div className="text-xs text-orange-300 font-bold">{p.priceCredits} {creditsSymbol}</div>
+                    <div className="text-xs text-orange-300 font-bold">
+                      {p.priceCredits} {creditsSymbol}
+                    </div>
                   </div>
                   <div className="text-xs text-zinc-500 mt-1">
-                    Odds: C {Math.round((p.odds.common || 0) * 100)}% • U {Math.round((p.odds.uncommon || 0) * 100)}% • R {Math.round((p.odds.rare || 0) * 100)}% • E {Math.round((p.odds.epic || 0) * 100)}% • L {Math.round((p.odds.legendary || 0) * 100)}%
+                    Odds: C {Math.round((p.odds.common || 0) * 100)}% • U{" "}
+                    {Math.round((p.odds.uncommon || 0) * 100)}% • R{" "}
+                    {Math.round((p.odds.rare || 0) * 100)}% • E{" "}
+                    {Math.round((p.odds.epic || 0) * 100)}% • L{" "}
+                    {Math.round((p.odds.legendary || 0) * 100)}%
                   </div>
                 </button>
               );
@@ -954,27 +1185,31 @@ export default function Page() {
             ) : inv.length === 0 ? (
               <div className="text-zinc-500 text-sm">No GPUs yet.</div>
             ) : (
-              inv.slice(0, 10).map((g) => (
-                <div key={g.userGpuId} className="rounded-xl border border-zinc-800 bg-black/30 p-3 flex gap-3">
-                  <div className="w-14 h-14 rounded-lg overflow-hidden border border-zinc-800 bg-black">
-                    <img
-                      src={g.imagePath || "/assets/rtx-classic.webp"}
-                      alt={g.name || "GPU"}
-                      className="w-full h-full object-cover"
-                      draggable={false}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold truncate">{g.name || `GPU #${g.gpuId}`}</div>
-                      <div className={`text-xs font-bold ${rarityColor(g.rarity)}`}>{(g.rarity || "common").toUpperCase()}</div>
+              inv.slice(0, 10).map((g) => {
+                const when = g.acquiredAt || g.createdAt;
+                return (
+                  <div key={g.userGpuId} className="rounded-xl border border-zinc-800 bg-black/30 p-3 flex gap-3">
+                    <div className="w-14 h-14 rounded-lg overflow-hidden border border-zinc-800 bg-black">
+                      <img
+                        src={g.imagePath || "/assets/rtx-classic.webp"}
+                        alt={g.name || "GPU"}
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                      />
                     </div>
-                    <div className="text-xs text-zinc-500 mt-1">
-                      {g.mhps} MH/s • {fmtWhen(g.createdAt)}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold truncate">{g.name || `GPU #${g.gpuId}`}</div>
+                        <div className={`text-xs font-bold ${rarityColor(g.rarity)}`}>{(g.rarity || "common").toUpperCase()}</div>
+                      </div>
+                      <div className="text-xs text-zinc-500 mt-1">
+                        {g.mhps} MH/s • {fmtWhen(when)}
+                        {g.source ? ` • ${g.source}` : ""}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -989,7 +1224,7 @@ export default function Page() {
           <div className="flex items-center justify-between">
             <div>
               <div className="font-bold text-lg">Leaderboard</div>
-              <div className="text-zinc-400 text-sm">Metric: Power Score (inventory power).</div>
+              <div className="text-zinc-400 text-sm">Metric: Power Score (active slots).</div>
             </div>
             <button
               onClick={() => token && fetchLeaderboard(token)}
@@ -1033,9 +1268,7 @@ export default function Page() {
                     <div className="text-xs text-zinc-500">Claimed: {fmtHusd8FromNano(it.totalClaimedNano)} HUSD</div>
                   </div>
                   <div className="mt-1 flex items-center justify-between">
-                    <div className="font-bold">
-                      {it.username || shortAddr(it.wallet)}
-                    </div>
+                    <div className="font-bold">{it.username || shortAddr(it.wallet)}</div>
                     <div className="text-sm font-extrabold">
                       {it.powerScore} <span className="text-zinc-500 font-semibold text-xs">POWER</span>
                     </div>
@@ -1046,7 +1279,7 @@ export default function Page() {
           )}
 
           <div className="text-zinc-500 text-xs mt-3">
-            Power Score will be tied to your GPU collection. This leaderboard is ready for future real economy.
+            Power Score is based on your equipped GPUs (active slots).
           </div>
         </div>
       </div>
@@ -1063,9 +1296,7 @@ export default function Page() {
             <span className="text-zinc-400 text-sm font-semibold">{me?.husd?.symbol || "HUSD"}</span>
           </div>
 
-          <div className="text-zinc-500 text-xs mt-2">
-            Beta: Vault is locked (no withdrawals). Claim moves funds here.
-          </div>
+          <div className="text-zinc-500 text-xs mt-2">Beta: Vault is locked (no withdrawals). Claim moves funds here.</div>
 
           <div className="mt-3 flex gap-2">
             <button
@@ -1294,15 +1525,10 @@ export default function Page() {
                       {(reveal.reward?.rarity || "common").toUpperCase()}
                     </div>
                   </div>
-                  <div className="text-xs text-zinc-500 mt-1">
-                    {Number(reveal.reward?.mhps || 1)} MH/s
-                  </div>
+                  <div className="text-xs text-zinc-500 mt-1">{Number(reveal.reward?.mhps || 1)} MH/s</div>
                 </div>
 
-                <button
-                  onClick={() => setReveal(null)}
-                  className="mt-4 w-full py-3 rounded-xl bg-orange-500 text-black font-extrabold"
-                >
+                <button onClick={() => setReveal(null)} className="mt-4 w-full py-3 rounded-xl bg-orange-500 text-black font-extrabold">
                   Continue
                 </button>
               </div>
@@ -1351,24 +1577,26 @@ export default function Page() {
                   disabled={busy || starterStep < 2}
                   className={[
                     "mt-4 w-full py-3 rounded-xl font-extrabold border",
-                    starterStep >= 2
-                      ? "bg-orange-500 text-black border-orange-500"
-                      : "bg-orange-500/20 text-orange-200 border-orange-500/30",
+                    starterStep >= 2 ? "bg-orange-500 text-black border-orange-500" : "bg-orange-500/20 text-orange-200 border-orange-500/30",
                     "disabled:opacity-100 disabled:cursor-not-allowed",
                   ].join(" ")}
                 >
                   {starterStep >= 2 ? "Claim GPU" : "Loading..."}
                 </button>
 
-                <div className="text-zinc-500 text-xs mt-3">
-                  This is a one-time gift. It will stay linked to your wallet.
-                </div>
+                <div className="text-zinc-500 text-xs mt-3">This is a one-time gift. It will stay linked to your wallet.</div>
               </div>
 
               <style jsx>{`
                 @keyframes pop {
-                  0% { transform: scale(0.97); opacity: 0.4; }
-                  100% { transform: scale(1); opacity: 1; }
+                  0% {
+                    transform: scale(0.97);
+                    opacity: 0.4;
+                  }
+                  100% {
+                    transform: scale(1);
+                    opacity: 1;
+                  }
                 }
               `}</style>
             </div>
