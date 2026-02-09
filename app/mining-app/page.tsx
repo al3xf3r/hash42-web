@@ -256,6 +256,17 @@ export default function Page() {
   const [equipModal, setEquipModal] = useState<null | { slotIndex: number }>(null);
 
   useEffect(() => {
+  if (!equipModal) return;
+
+  const prev = document.body.style.overflow;
+  document.body.style.overflow = "hidden";
+
+  return () => {
+    document.body.style.overflow = prev;
+  };
+}, [equipModal]);
+
+  useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
@@ -332,6 +343,22 @@ export default function Page() {
   }, [tab, token]);
 
   const miningActive = !!me?.mining?.active;
+
+  const invSorted = useMemo(() => {
+  const copy = [...inv];
+  copy.sort((a, b) => {
+    const dm = (b.mhps || 0) - (a.mhps || 0);
+    if (dm !== 0) return dm;
+    // tie-breaker: rarità e poi id
+    const ra = (a.rarity || "").toLowerCase();
+    const rb = (b.rarity || "").toLowerCase();
+    const order = ["legendary", "epic", "rare", "uncommon", "common"];
+    const dr = (order.indexOf(rb) - order.indexOf(ra));
+    if (dr !== 0) return dr;
+    return (b.userGpuId || 0) - (a.userGpuId || 0);
+  });
+  return copy;
+}, [inv]);
 
   const endsAtMs = useMemo(() => {
     const s = me?.mining?.endsAt;
@@ -816,7 +843,7 @@ export default function Page() {
     const slots =
       rigSlots ?? Array.from({ length: 5 }).map((_, i) => ({ slotIndex: i + 1, userGpuId: null, gpu: null }));
     const equippedIds = new Set(slots.map((s) => s.userGpuId).filter(Boolean) as number[]);
-    const availableForEquip = inv.filter((g) => !equippedIds.has(g.userGpuId));
+    const availableForEquip = invSorted.filter((g) => !equippedIds.has(g.userGpuId));
 
     return (
       <div className="space-y-4">
@@ -1034,7 +1061,11 @@ export default function Page() {
                 </button>
               </div>
 
-              <div className="mt-3 space-y-2 max-h-[55vh] overflow-auto pr-1">
+              <div
+  className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1 overscroll-contain"
+  onWheel={(e) => e.stopPropagation()}
+  onTouchMove={(e) => e.stopPropagation()}
+>
                 {invLoading ? (
                   <>
                     <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
@@ -1224,7 +1255,7 @@ export default function Page() {
             ) : inv.length === 0 ? (
               <div className="text-zinc-500 text-sm">No GPUs yet.</div>
             ) : (
-              inv.slice(0, 10).map((g) => {
+              invSorted.slice(0, 10).map((g) => {
                 const when = g.acquiredAt || g.createdAt;
                 return (
                   <div key={g.userGpuId} className="rounded-xl border border-zinc-800 bg-black/30 p-3 flex gap-3">
