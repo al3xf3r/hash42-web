@@ -266,10 +266,13 @@ export default function Page() {
   };
 }, [equipModal]);
 
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+ useEffect(() => {
+  // 🔒 while Equip modal is open, freeze UI ticks to avoid scroll-jump
+  if (equipModal) return;
+
+  const t = setInterval(() => setNow(Date.now()), 1000);
+  return () => clearInterval(t);
+}, [equipModal]);
 
   useEffect(() => {
     const t = localStorage.getItem("hash42_token");
@@ -293,25 +296,28 @@ export default function Page() {
     setUiMiningBalanceNano(Number(me?.husd?.balanceNano || 0));
   }, [me?.husd?.balanceNano]);
 
-  useEffect(() => {
-    if (!token) return;
-    if (!me?.mining?.active) return;
+useEffect(() => {
+  if (!token) return;
+  if (!me?.mining?.active) return;
 
-    const rate = Number(me?.mining?.rateNanoPerSec ?? 11);
-    const uiTick = setInterval(() => {
-      setUiMiningBalanceNano((x) => x + rate);
-    }, 1000);
+  // 🔒 freeze while Equip modal is open (otherwise scrolling will jump)
+  if (equipModal) return;
 
-    const refresh = setInterval(() => {
-      fetchMe(token).catch(() => {});
-      fetchRigSlots(token).catch(() => {});
-    }, 15000);
+  const rate = Number(me?.mining?.rateNanoPerSec ?? 11);
+  const uiTick = setInterval(() => {
+    setUiMiningBalanceNano((x) => x + rate);
+  }, 1000);
 
-    return () => {
-      clearInterval(uiTick);
-      clearInterval(refresh);
-    };
-  }, [token, me?.mining?.active, me?.mining?.rateNanoPerSec]);
+  const refresh = setInterval(() => {
+    fetchMe(token).catch(() => {});
+    fetchRigSlots(token).catch(() => {});
+  }, 15000);
+
+  return () => {
+    clearInterval(uiTick);
+    clearInterval(refresh);
+  };
+}, [token, me?.mining?.active, me?.mining?.rateNanoPerSec, equipModal]);
 
   useEffect(() => {
     if (!token) return;
