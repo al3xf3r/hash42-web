@@ -1251,7 +1251,7 @@ useEffect(() => {
             </button>
           </div>
 
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1">
             {invLoading ? (
               <>
                 <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
@@ -1261,7 +1261,7 @@ useEffect(() => {
             ) : inv.length === 0 ? (
               <div className="text-zinc-500 text-sm">No GPUs yet.</div>
             ) : (
-              invSorted.slice(0, 10).map((g) => {
+              invSorted.map((g) => {
                 const when = g.acquiredAt || g.createdAt;
                 return (
                   <div key={g.userGpuId} className="rounded-xl border border-zinc-800 bg-black/30 p-3 flex gap-3">
