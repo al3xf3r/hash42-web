@@ -1251,7 +1251,11 @@ useEffect(() => {
             </button>
           </div>
 
-          <div className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+          <div
+  className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1 overscroll-contain"
+  onWheel={(e) => e.stopPropagation()}
+  onTouchMove={(e) => e.stopPropagation()}
+>
             {invLoading ? (
               <>
                 <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
@@ -1521,15 +1525,14 @@ useEffect(() => {
             </button>
           </div>
         )}
-
-        {token && (
-          <div className="space-y-4">
-            {tab === "mining" && <MiningTab />}
-            {tab === "marketplace" && <MarketplaceTab />}
-            {tab === "leaderboard" && <LeaderboardTab />}
-            {tab === "vault" && <VaultTab />}
-          </div>
-        )}
+{token && (
+  <div className="space-y-4">
+    {tab === "mining" && MiningTab()}
+    {tab === "marketplace" && MarketplaceTab()}
+    {tab === "leaderboard" && LeaderboardTab()}
+    {tab === "vault" && VaultTab()}
+  </div>
+)}
 
         {toast && (
           <div className="fixed left-1/2 -translate-x-1/2 bottom-24 px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-sm">
@@ -1695,7 +1698,7 @@ useEffect(() => {
         )}
       </div>
 
-      {token ? <BottomNav /> : null}
+      {token ? BottomNav() : null}
 
       <ErrorModal
         open={!!popup}
