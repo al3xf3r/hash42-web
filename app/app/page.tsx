@@ -278,7 +278,7 @@ function NextDistributionCountdown({ serverNowISO }: { serverNowISO?: string | n
   }, []);
 
   return (
-    <div className="text-right">
+    <div className="text-right space-y-1">
       <div className="text-zinc-400 text-xs">Next distribution</div>
       <div className="text-2xl font-extrabold text-cyan-300">{formatHMS(seconds)}</div>
       <div className="text-zinc-500 text-xs">Daily at 17:00 UTC+1</div>
