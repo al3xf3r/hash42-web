@@ -1733,7 +1733,7 @@ const networkPowerPercent = Math.min(
     slotRefs={slotRefs}
   />
 
-  <div className="grid grid-cols-5 gap-2 relative z-[2]">
+  <div className="grid grid-cols-5 gap-1 relative z-[2]">
     {Array.from({ length: 5 }).map((_, i) => {
       const locked = i >= slotsUnlocked;
       const g = rig[i];
