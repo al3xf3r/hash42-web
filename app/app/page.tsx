@@ -1463,7 +1463,8 @@ if (j && j.starterRtxGifted === false) {
     };
 
     return (
-      <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 backdrop-blur">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 backdrop-blur z-[9999]">
+        <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 backdrop-blur z-[9999] isolate"></div>
         <div className="max-w-md mx-auto flex">
           {item("protocol", "Protocol")}
           {item("marketplace", "Marketplace")}
@@ -1617,7 +1618,8 @@ const networkPowerPercent = Math.min(
     : 0
 );
 
-    const displayPower = rigPower > 0 ? rigPower : Number(me?.powerScore || rewardsV2?.power || 0);
+    const rigDisplayPower = rigPower; // 0 se rig vuoto
+const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || rewardsV2?.power || 0);
 
     const rigWrapRef = useRef<HTMLDivElement | null>(null);
     const slotRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -1627,7 +1629,7 @@ const networkPowerPercent = Math.min(
     // Estimated next payout (requires totalPower)
     const totalPower = Number(protocolStatus?.totalPower || "0");
     const estNextNano =
-      totalPower > 0 && displayPower > 0 ? Math.floor((availNano * displayPower) / totalPower) : null;
+      totalPower > 0 && effectivePower > 0 ? Math.floor((availNano * effectivePower) / totalPower) : null;
 
     return (
       <div className="space-y-4">
@@ -1672,11 +1674,17 @@ const networkPowerPercent = Math.min(
 
   {/* Energy Flow Bar */}
   <div className="mt-2 h-2 rounded-full bg-zinc-900 overflow-hidden relative">
-    <div
-      className="h-full bg-gradient-to-r from-red-400 via-orange-400 to-yellow-300 animate-pulse"
-      style={{ width: `${networkPowerPercent}%` }}
-    />
+  {/* glow sempre pieno */}
+  <div className="absolute inset-0 opacity-60">
+    <div className="w-full h-full bg-gradient-to-r from-red-400 via-orange-400 to-yellow-300 animate-pulse" />
   </div>
+
+  {/* fill percentuale sopra (più solido) */}
+  <div
+    className="relative h-full bg-cyan-400/70"
+    style={{ width: `${networkPowerPercent}%` }}
+  />
+</div>
 
   <div className="text-[11px] text-zinc-500 mt-2">
     Real-time aggregated hash power contributing to revenue distribution.
@@ -1738,7 +1746,7 @@ const networkPowerPercent = Math.min(
 
     <div className="text-right">
       <div className="text-zinc-400 text-xs">Rig Power</div>
-      <div className="text-2xl font-extrabold">{displayPower}</div>
+      <div className="text-2xl font-extrabold">{rigDisplayPower}</div>
       <div className="text-zinc-500 text-xs">MH/s (beta)</div>
     </div>
   </div>
@@ -1754,7 +1762,7 @@ const networkPowerPercent = Math.min(
   </div>
 
   {/* SLOT GRID + OVERLAY CAVI (partono dagli slot) */}
-<div className="mt-4 relative pb-[100px] sm:pb-[100px]" ref={rigWrapRef}>
+<div className="mt-4 relative pb-[100px] sm:pb-[100px] isolate" ref={rigWrapRef}>
   {/* overlay assoluto che parte dagli slot e va al mainframe */}
   <RigWiringMainframe
     rig={rig}
@@ -1796,7 +1804,7 @@ const networkPowerPercent = Math.min(
                 />
               </div>
               <div className="mt-1 text-[10px] text-zinc-300 font-semibold truncate">
-                {g.mhps} mh/s
+                {g.mhps}
               </div>
             </div>
           ) : (
@@ -1857,7 +1865,7 @@ const networkPowerPercent = Math.min(
             <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm space-y-2">
               <div className="flex justify-between">
                 <span className="text-zinc-400">Power</span>
-                <span className="font-extrabold">{displayPower}</span>
+                <span className="font-extrabold">{effectivePower}</span>
               </div>
 
               <div className="flex justify-between">
