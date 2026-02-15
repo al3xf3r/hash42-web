@@ -1681,7 +1681,7 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
 
   {/* fill percentuale sopra (più solido) */}
   <div
-    className="relative h-full bg-cyan-400/70"
+    className="relative h-full bg-red-400/70"
     style={{ width: `${networkPowerPercent}%` }}
   />
 </div>
