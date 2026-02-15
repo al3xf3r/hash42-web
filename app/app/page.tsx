@@ -2167,7 +2167,10 @@ const networkPowerPercent = Math.min(
               <div className="font-bold text-lg">Leaderboard</div>
               <div className="text-zinc-400 text-sm">
   Public leaderboard (Power Score).
- <div className="mt-3">
+  <span className="block text-lg mt-1">
+    Total network power: <span className="text-cyan-500 font-bold">{totalNetworkPower} MH/s</span> 
+  </span>
+  <div className="mt-3">
   <div className="text-[11px] text-zinc-500 mb-2">
     Live network power signal
   </div>
