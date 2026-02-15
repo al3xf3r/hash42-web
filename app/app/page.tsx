@@ -1796,7 +1796,7 @@ const networkPowerPercent = Math.min(
                 />
               </div>
               <div className="mt-1 text-[10px] text-zinc-300 font-semibold truncate">
-                {g.mhps} M
+                {g.mhps} mh/s
               </div>
             </div>
           ) : (
