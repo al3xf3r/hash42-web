@@ -281,7 +281,7 @@ function NextDistributionCountdown({ serverNowISO }: { serverNowISO?: string | n
     <div className="text-right">
       <div className="text-zinc-400 text-xs">Next distribution</div>
       <div className="text-2xl font-extrabold text-cyan-300">{formatHMS(seconds)}</div>
-      <div className="text-zinc-500 text-xs">Daily at 17:00 (Rome)</div>
+      <div className="text-zinc-500 text-xs">Daily at 17:00 UTC+1</div>
     </div>
   );
 }
@@ -1647,13 +1647,7 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
 
             <div className="flex flex-col items-end gap-2">
               <NextDistributionCountdown serverNowISO={protocolStatus?.serverNow} />
-              <button
-                onClick={() => fetchProtocolStatus().catch(() => {})}
-                disabled={busy || protocolLoading}
-                className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
-              >
-                {protocolLoading ? "..." : "Refresh"}
-              </button>
+              
             </div>
           </div>
 <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
@@ -2466,7 +2460,7 @@ const networkPowerPercent = Math.min(
     disabled={busy || protocolLoading}
     title="Refresh public protocol status"
   >
-    {protocolLoading ? "..." : "Status"}
+    {protocolLoading ? "..." : "Refresh"}
   </button>
 </div>
         </div>
