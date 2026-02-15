@@ -1687,7 +1687,7 @@ const networkPowerPercent = Math.min(
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-zinc-400">Allocated (unclaimed)</span>
+              <span className="text-zinc-400">Allocated</span>
               <span className="font-bold">
                 {fmtCredits8FromNano(allocNano)} {husdSymbol}
               </span>
@@ -1704,7 +1704,7 @@ const networkPowerPercent = Math.min(
 
             <div className="pt-2 mt-2 border-t border-zinc-800 flex justify-between">
                 
-              <span className="text-zinc-400">Estimated next payout</span>
+              <span className="text-zinc-400">Est. next payout</span>
               <span className="font-extrabold text-cyan-300">
                 {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${husdSymbol}`}
               </span>
