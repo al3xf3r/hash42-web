@@ -1,10 +1,15 @@
-// app/protocol/page.tsx
+// app/app/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BrowserProvider } from "ethers";
 
-const API = process.env.NEXT_PUBLIC_API_BASE!;
+const API = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
+
+if (!API) {
+  // in prod non vuoi crash, ma vuoi capirlo subito
+  console.error("NEXT_PUBLIC_API_BASE is missing. Set it in hosting env vars.");
+}
 
 type ActivityItem = {
   id: number;
@@ -797,15 +802,21 @@ function RigWiringMainframe({
           {/* MAINFRAME CLUSTER (senza “palla blu”) */}
           {(() => {
             const wrap = wrapRef.current?.getBoundingClientRect();
-            const w = wrap?.width || 1;
-            const h = wrap?.height || 1;
+const w = Math.max(1, wrap?.width || 1);
+const h = Math.max(1, wrap?.height || 1);
 
-            const cx = w * CORE.x;
-            const cy = h * CORE.y;
+const cx = w * CORE.x;
+const cy = h * CORE.y;
 
-            const rackW = Math.min(108, w * 0.23);
-            const rackH = Math.min(170, h * 0.38);
+// min/max per evitare valori troppo piccoli
+const rackW = Math.max(52, Math.min(108, w * 0.23));
+const rackH = Math.max(90, Math.min(170, h * 0.38));
 
+// pad non deve mai rendere negativo l’interno
+const pad = Math.max(6, Math.min(10, Math.floor(Math.min(rackW, rackH) * 0.14)));
+
+const innerW = Math.max(1, rackW - pad * 2);
+const innerH = Math.max(1, rackH - pad * 2);
             const gap = Math.min(18, w * 0.04);
 
             const leftX = cx - (rackW * 1.5 + gap);
@@ -847,8 +858,8 @@ function RigWiringMainframe({
                       <rect
                         x={x + pad}
                         y={topY + pad}
-                        width={rackW - pad * 2}
-                        height={rackH - pad * 2}
+                        width={innerW}
+                        height={innerH}
                         rx={14}
                         fill="url(#rackCablesColor)"
                         opacity={anyOn ? 1 : 0.6}
@@ -1156,8 +1167,8 @@ const husdSymbol = "HUSD";
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address }),
       });
-      const n = await r1.json();
-      if (!r1.ok) throw new Error(n.error || "nonce_failed");
+      const n = await r1.json().catch(() => ({} as any));
+if (!r1.ok) throw new Error(n?.error || `nonce_failed_${r1.status}`);
 
       const signer = await provider.getSigner();
       const signature = await signer.signMessage(n.message);
@@ -1167,8 +1178,8 @@ const husdSymbol = "HUSD";
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address, message: n.message, signature }),
       });
-      const v = await r2.json();
-      if (!r2.ok) throw new Error(v.error || "verify_failed");
+      const v = await r2.json().catch(() => ({} as any));
+if (!r2.ok) throw new Error(v?.error || `verify_failed_${r2.status}`);
 
       localStorage.setItem("hash42_token", v.token);
       localStorage.setItem("hash42_address", address);
@@ -2411,11 +2422,11 @@ const networkPowerPercent = Math.min(
         </div>
 
         <div className="space-y-4 mt-4">
-          {tab === "protocol" && ProtocolTab()}
-          {tab === "marketplace" && MarketplaceTab()}
-          {tab === "leaderboard" && LeaderboardTab()}
-          {tab === "vault" && VaultTab()}
-        </div>
+  {tab === "protocol" && <ProtocolTab />}
+  {tab === "marketplace" && <MarketplaceTab />}
+  {tab === "leaderboard" && <LeaderboardTab />}
+  {tab === "vault" && <VaultTab />}
+</div>
 
         {toast && (
           <div className="fixed left-1/2 -translate-x-1/2 bottom-24 px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-sm">

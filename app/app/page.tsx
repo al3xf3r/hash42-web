@@ -6,6 +6,11 @@ import { BrowserProvider } from "ethers";
 
 const API = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
 
+if (!API) {
+  // in prod non vuoi crash, ma vuoi capirlo subito
+  console.error("NEXT_PUBLIC_API_BASE is missing. Set it in hosting env vars.");
+}
+
 type ActivityItem = {
   id: number;
   amountNano: number; // can be +/-

@@ -14,7 +14,9 @@ export function middleware(req: NextRequest) {
     p.startsWith("/favicon") ||
     p.startsWith("/assets") ||
     p.startsWith("/robots.txt") ||
-    p.startsWith("/sitemap.xml");
+    p.startsWith("/sitemap.xml") ||
+    p.startsWith("/.well-known") ||
+    p.startsWith("/api");
 
   if (isNext) return NextResponse.next();
 
