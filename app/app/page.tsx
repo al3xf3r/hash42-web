@@ -1646,8 +1646,9 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
             </div>
 
             <div className="flex flex-col items-end gap-2">
+              <div className="mb-3">
               <NextDistributionCountdown serverNowISO={protocolStatus?.serverNow} />
-              
+              </div>
             </div>
           </div>
 <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
@@ -2156,7 +2157,7 @@ const networkPowerPercent = Math.min(
     return (
       <div className="space-y-4">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-bold text-lg">Leaderboard</div>
               <div className="text-zinc-400 text-sm">
@@ -2523,7 +2524,7 @@ const networkPowerPercent = Math.min(
             </span>
           </div>
 
-          <div className="mt-2 h-2 rounded-full bg-zinc-900 overflow-hidden">
+          <div className="mt-2 h-2 w-full rounded-full bg-zinc-900 overflow-hidden">
             <div
               className="h-full bg-orange-500 transition-all"
               style={{ width: `${starterStep === 0 ? 25 : starterStep === 1 ? 65 : 100}%` }}
