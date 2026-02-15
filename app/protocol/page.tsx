@@ -67,7 +67,7 @@ type MeResponse = {
   powerScore?: number;
   inventoryPowerScore?: number;
   credits?: {
-    symbol: string; // "CREDITS"
+    symbol: string; // "HUSD"
     balanceNano: number; // spendable
     nanoPerUnit?: string;
   };
@@ -416,6 +416,509 @@ function RigWiringAnimation({
   );
 }
 
+
+function RigWiringMainframe({
+  rig,
+  slotsUnlocked,
+  loggedIn,
+  wrapRef,
+  slotRefs,
+}: {
+  rig: (InventoryItem | null)[];
+  slotsUnlocked: number;
+  loggedIn: boolean;
+  wrapRef: React.RefObject<HTMLDivElement | null>;
+  slotRefs: React.RefObject<(HTMLButtonElement | null)[]>;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  const connected = useMemo(() => {
+    return Array.from({ length: 5 }).map((_, i) => {
+      const unlocked = i < slotsUnlocked;
+      const hasGpu = !!rig[i];
+      return loggedIn && unlocked && hasGpu;
+    });
+  }, [rig, slotsUnlocked, loggedIn]);
+
+  const anyOn = connected.some(Boolean);
+  const activeCount = connected.filter(Boolean).length;
+
+  
+
+  // dynamic ports (from DOM slot buttons)
+  const [ports, setPorts] = useState<{ x: number; y: number }[]>(
+    Array.from({ length: 5 }).map(() => ({ x: 0, y: 0 }))
+  );
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    const compute = () => {
+      const w = wrap.getBoundingClientRect();
+      const next = Array.from({ length: 5 }).map((_, i) => {
+        const el = slotRefs.current[i];
+        if (!el) return { x: w.width * ((i + 1) / 6), y: 82 }; // fallback
+        const r = el.getBoundingClientRect();
+        // start cable from bottom-center of slot card (ATTACCATO allo slot)
+        const x = r.left - w.left + r.width / 2;
+        const y = r.bottom - w.top; // bottom edge
+        return { x, y };
+      });
+      setPorts(next);
+    };
+
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(wrap);
+    window.addEventListener("scroll", compute, true);
+    window.addEventListener("resize", compute);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("scroll", compute, true);
+      window.removeEventListener("resize", compute);
+    };
+  }, [wrapRef, slotRefs, rig, slotsUnlocked, loggedIn]);
+
+  // layout inside wrap
+  const CORE = useMemo(() => {
+    // “mainframe area” center lower part
+    return { x: 0.5, y: 0.70 };
+  }, []);
+
+  const pathFor = (i: number, w: number, h: number) => {
+    const p = ports[i];
+    const x1 = p.x;
+    const y1 = p.y; // starts from slot bottom
+    const x2 = w * CORE.x;
+    const y2 = h * CORE.y;
+
+    const dx = x1 - x2;
+    const c1x = x1;
+    const c1y = y1 + Math.max(40, h * 0.12);
+    const c2x = x2 + dx * 0.55;
+    const c2y = y2 - Math.max(30, h * 0.10);
+
+    return `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+  };
+
+  // Canvas: particles on active cables (same vibe, but uses dynamic ports)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    const svg = svgRef.current;
+    if (!canvas || !wrap || !svg) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let raf = 0;
+    let last = performance.now();
+
+    const resize = () => {
+      const r = wrap.getBoundingClientRect();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.floor(r.width * dpr);
+      canvas.height = Math.floor(r.height * dpr);
+      canvas.style.width = `${r.width}px`;
+      canvas.style.height = `${r.height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(wrap);
+
+    // sample cable points in pixel coords directly
+    const sampleCable = (i: number, steps = 90) => {
+      const r = wrap.getBoundingClientRect();
+      const d = pathFor(i, r.width, r.height);
+
+      // quick bezier sampler from the same control points logic:
+      const p = ports[i];
+      const x1 = p.x, y1 = p.y;
+      const x2 = r.width * CORE.x, y2 = r.height * CORE.y;
+
+      const dx = x1 - x2;
+      const c1x = x1;
+      const c1y = y1 + Math.max(40, r.height * 0.12);
+      const c2x = x2 + dx * 0.55;
+      const c2y = y2 - Math.max(30, r.height * 0.10);
+
+      const pts: { x: number; y: number }[] = [];
+      for (let t = 0; t <= 1.00001; t += 1 / steps) {
+        const mt = 1 - t;
+        const x =
+          mt * mt * mt * x1 +
+          3 * mt * mt * t * c1x +
+          3 * mt * t * t * c2x +
+          t * t * t * x2;
+        const y =
+          mt * mt * mt * y1 +
+          3 * mt * mt * t * c1y +
+          3 * mt * t * t * c2y +
+          t * t * t * y2;
+        pts.push({ x, y });
+      }
+      return { d, pts };
+    };
+
+    let cables: { d: string; pts: { x: number; y: number }[]; on: boolean }[] = [];
+    const rebuild = () => {
+      const r = wrap.getBoundingClientRect();
+      cables = Array.from({ length: 5 }).map((_, i) => {
+        const s = sampleCable(i);
+        return { d: s.d, pts: s.pts, on: !!connected[i] };
+      });
+    };
+    rebuild();
+
+    const ro2 = new ResizeObserver(() => {
+      resize();
+      rebuild();
+    });
+    ro2.observe(wrap);
+
+    type P = { cable: number; t: number; speed: number; size: number; alpha: number };
+    let particles: P[] = [];
+
+    const spawn = () => {
+      if (!anyOn) return;
+      const n = 1 + activeCount * 2;
+      const activeIdx = cables.map((c, idx) => (c.on ? idx : -1)).filter((x) => x >= 0);
+      if (!activeIdx.length) return;
+
+      for (let k = 0; k < n; k++) {
+        const cable = activeIdx[Math.floor(Math.random() * activeIdx.length)];
+        particles.push({
+          cable,
+          t: Math.random() * 0.18,
+          speed: 0.55 + Math.random() * 0.65,
+          size: 1.2 + Math.random() * 2.4,
+          alpha: 0.55 + Math.random() * 0.45,
+        });
+      }
+      if (particles.length > 320) particles = particles.slice(particles.length - 320);
+    };
+
+    const drawGlowDot = (x: number, y: number, rr: number, a: number) => {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rr * 8);
+      g.addColorStop(0, `rgba(34,211,238,${0.60 * a})`);
+      g.addColorStop(0.35, `rgba(34,211,238,${0.20 * a})`);
+      g.addColorStop(1, `rgba(34,211,238,0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, rr * 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(210, 255, 255, ${0.85 * a})`;
+      ctx.beginPath();
+      ctx.arc(x, y, rr, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    };
+
+    const loop = (now: number) => {
+      const dt = Math.min(0.033, (now - last) / 1000);
+      last = now;
+
+      const r = wrap.getBoundingClientRect();
+      ctx.clearRect(0, 0, r.width, r.height);
+
+      if (anyOn) {
+        // ambient
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const amb = ctx.createRadialGradient(r.width * 0.5, r.height * 0.75, 0, r.width * 0.5, r.height * 0.75, r.width * 0.75);
+        amb.addColorStop(0, "rgba(34,211,238,0.10)");
+        amb.addColorStop(0.55, "rgba(34,211,238,0.04)");
+        amb.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = amb;
+        ctx.fillRect(0, 0, r.width, r.height);
+        ctx.restore();
+
+        if (Math.random() < 0.85) spawn();
+
+        particles = particles.filter((p) => {
+          const c = cables[p.cable];
+          if (!c || !c.on) return false;
+
+          p.t += p.speed * dt;
+          if (p.t >= 1) return false;
+
+          const idx = Math.min(c.pts.length - 1, Math.floor(p.t * (c.pts.length - 1)));
+          const pt = c.pts[idx];
+          if (!pt) return false;
+
+          drawGlowDot(pt.x, pt.y, p.size, p.alpha);
+
+          if (Math.random() < 0.03) {
+            drawGlowDot(pt.x + (Math.random() - 0.5) * 10, pt.y + (Math.random() - 0.5) * 10, 0.9, 0.55);
+          }
+          return true;
+        });
+      } else {
+        particles = [];
+      }
+
+      raf = requestAnimationFrame(loop);
+    };
+
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      ro2.disconnect();
+    };
+  }, [anyOn, activeCount, connected, ports, wrapRef, CORE]);
+
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none z-[1]"
+      style={{
+        // copre tutta l’area slot + mainframe
+        // (se vuoi più spazio sotto, aumenta padding-bottom nel parent)
+      }}
+    >
+      <div className="absolute left-0 right-0 top-0 bottom-0">
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full"
+          style={{ mixBlendMode: "screen", opacity: anyOn ? 1 : 0.15 }}
+        />
+
+        <svg
+          ref={svgRef}
+          className="absolute inset-0 w-full h-full"
+          aria-hidden="true"
+        >
+          <defs>
+            <filter id="glowSoft" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="3.5" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            <filter id="glowStrong" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="8" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            <linearGradient id="cableLive" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="rgba(34,211,238,0.10)" />
+              <stop offset="35%" stopColor="rgba(34,211,238,0.95)" />
+              <stop offset="70%" stopColor="rgba(34,211,238,0.18)" />
+              <stop offset="100%" stopColor="rgba(34,211,238,0.10)" />
+            </linearGradient>
+
+            <linearGradient id="cableDim" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="rgba(255,255,255,0.05)" />
+              <stop offset="50%" stopColor="rgba(255,255,255,0.09)" />
+              <stop offset="100%" stopColor="rgba(255,255,255,0.04)" />
+            </linearGradient>
+
+            {/* CAVI COLORATI DENTRO RACK */}
+            <pattern id="rackCablesColor" width="26" height="22" patternUnits="userSpaceOnUse">
+              <path d="M 0 6 C 8 0, 18 14, 26 8" stroke="rgba(34,197,94,0.65)" strokeWidth="2.2" fill="none" />
+              <path d="M 0 14 C 10 6, 16 22, 26 14" stroke="rgba(239,68,68,0.62)" strokeWidth="2.2" fill="none" />
+              <path d="M 0 10 C 8 16, 18 2, 26 10" stroke="rgba(245,158,11,0.55)" strokeWidth="2.0" fill="none" />
+              <path d="M 0 18 C 9 12, 17 26, 26 18" stroke="rgba(59,130,246,0.50)" strokeWidth="2.0" fill="none" />
+              <circle cx="6" cy="6" r="1.6" fill="rgba(34,197,94,0.95)" />
+              <circle cx="20" cy="14" r="1.6" fill="rgba(239,68,68,0.95)" />
+              <circle cx="14" cy="10" r="1.5" fill="rgba(245,158,11,0.95)" />
+              <circle cx="22" cy="18" r="1.4" fill="rgba(59,130,246,0.90)" />
+            </pattern>
+
+            {/* glow “wow” unico dentro rack */}
+            <filter id="rackWow" x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="5" result="b" />
+              <feColorMatrix
+                in="b"
+                type="matrix"
+                values="
+                  1 0 0 0 0
+                  0 1 0 0 0
+                  0 0 1 0 0
+                  0 0 0 1 0
+                "
+                result="c"
+              />
+              <feMerge>
+                <feMergeNode in="c" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* CAVI: partono dagli slot (nessun header in mezzo) */}
+          {Array.from({ length: 5 }).map((_, i) => {
+            const on = connected[i];
+            const wrap = wrapRef.current?.getBoundingClientRect();
+            const w = wrap?.width || 1;
+            const h = wrap?.height || 1;
+            const d = pathFor(i, w, h);
+
+            return (
+              <g key={`cable-${i}`} opacity={on ? 1 : 0.45}>
+                <path d={d} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth={10} strokeLinecap="round" opacity={0.55} />
+                <path
+                  d={d}
+                  fill="none"
+                  stroke={on ? "rgba(34,211,238,0.22)" : "rgba(255,255,255,0.09)"}
+                  strokeWidth={7}
+                  strokeLinecap="round"
+                  opacity={on ? 0.95 : 0.55}
+                />
+                <path
+                  d={d}
+                  fill="none"
+                  stroke={on ? "url(#cableLive)" : "url(#cableDim)"}
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                  filter={on ? "url(#glowSoft)" : undefined}
+                  style={{ animation: on ? "cableGlow 1.0s ease-in-out infinite" : "none" }}
+                />
+              </g>
+            );
+          })}
+
+          {/* MAINFRAME CLUSTER (senza “palla blu”) */}
+          {(() => {
+            const wrap = wrapRef.current?.getBoundingClientRect();
+            const w = wrap?.width || 1;
+            const h = wrap?.height || 1;
+
+            const cx = w * CORE.x;
+            const cy = h * CORE.y;
+
+            const rackW = Math.min(108, w * 0.23);
+            const rackH = Math.min(170, h * 0.38);
+
+            const gap = Math.min(18, w * 0.04);
+
+            const leftX = cx - (rackW * 1.5 + gap);
+            const midX = cx - rackW / 2;
+            const rightX = cx + (rackW / 2 + gap);
+
+            const topY = cy - rackH / 2;
+
+            return (
+              <g style={{ transformOrigin: `${cx}px ${cy}px`, animation: anyOn ? "float 2.8s ease-in-out infinite" : "none" }}>
+                {/* base glow sotto */}
+                {anyOn && (
+                  <ellipse
+                    cx={cx}
+                    cy={cy + rackH * 0.35}
+                    rx={rackW * 2.2}
+                    ry={rackH * 0.45}
+                    fill="rgba(34,211,238,0.10)"
+                    filter="url(#glowStrong)"
+                    style={{ animation: "breath 1.8s ease-in-out infinite" }}
+                  />
+                )}
+
+                {/* racks */}
+                {[leftX, midX, rightX].map((x, idx) => {
+                  const isMid = idx === 1;
+                  const pad = 10;
+                  return (
+                    <g key={idx} filter={anyOn ? "url(#rackWow)" : undefined} opacity={anyOn ? 1 : 0.55}>
+                      <rect
+                        x={x}
+                        y={topY}
+                        width={rackW}
+                        height={rackH}
+                        rx={18}
+                        fill="rgba(18,26,38,0.95)"
+                        stroke={anyOn ? "rgba(34,211,238,0.22)" : "rgba(255,255,255,0.08)"}
+                      />
+                      <rect
+                        x={x + pad}
+                        y={topY + pad}
+                        width={rackW - pad * 2}
+                        height={rackH - pad * 2}
+                        rx={14}
+                        fill="url(#rackCablesColor)"
+                        opacity={anyOn ? 1 : 0.6}
+                        style={{
+                          animation: anyOn ? "rackPulse 1.4s ease-in-out infinite" : "none",
+                        }}
+                      />
+
+                      {/* scan line “energia” dentro */}
+                      {anyOn && (
+                        <rect
+                          x={x + pad}
+                          y={topY + pad + (rackH - pad * 2) * 0.25}
+                          width={rackW - pad * 2}
+                          height={10}
+                          rx={6}
+                          fill="rgba(34,211,238,0.22)"
+                          style={{
+                            animation: isMid ? "scanFast 0.95s linear infinite" : "scan 1.25s linear infinite",
+                          }}
+                        />
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            );
+          })()}
+
+        </svg>
+
+        <style jsx>{`
+          @keyframes cableGlow {
+            0%, 100% { opacity: 0.55; }
+            50% { opacity: 1; }
+          }
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-2px); }
+          }
+          @keyframes breath {
+            0%, 100% { opacity: 0.45; }
+            50% { opacity: 1; }
+          }
+          @keyframes rackPulse {
+            0%, 100% { filter: saturate(1.1) brightness(1.0); opacity: 0.92; }
+            50% { filter: saturate(1.45) brightness(1.15); opacity: 1; }
+          }
+          @keyframes scan {
+            0% { transform: translateY(-24px); opacity: 0.0; }
+            15% { opacity: 0.9; }
+            85% { opacity: 0.9; }
+            100% { transform: translateY(54px); opacity: 0.0; }
+          }
+          @keyframes scanFast {
+            0% { transform: translateY(-28px); opacity: 0.0; }
+            15% { opacity: 1.0; }
+            85% { opacity: 1.0; }
+            100% { transform: translateY(64px); opacity: 0.0; }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
 export default function Page() {
   const [tab, setTab] = useState<TabKey>("protocol");
 
@@ -426,6 +929,9 @@ export default function Page() {
   const [me, setMe] = useState<MeResponse | null>(null);
 
   const [busy, setBusy] = useState(false);
+
+  const [authBusyStep, setAuthBusyStep] = useState<"connect" | "sign" | null>(null);
+
   const [toast, setToast] = useState<string | null>(null);
   const [popup, setPopup] = useState<PopupState>(null);
 
@@ -501,9 +1007,12 @@ const [starterStep, setStarterStep] = useState(0);
   }, [tab]);
 
   useEffect(() => {
-    if (tab === "leaderboard") fetchLeaderboardPublic().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  if (tab === "leaderboard") {
+    fetchLeaderboardPublic().catch(() => {});
+    fetchProtocolStatus().catch(() => {});
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [tab]);
 
   useEffect(() => {
     if (!token) return;
@@ -546,9 +1055,8 @@ const [starterStep, setStarterStep] = useState(0);
 
   const slotsUnlocked = clampSlots(Number(me?.slotsUnlocked || 1));
 
-  const creditsNano =
-    Number(me?.credits?.balanceNano ?? 0) || Number(me?.husd?.vaultNano ?? 0) || 0;
-  const creditsSymbol = me?.credits?.symbol || "CREDITS";
+  const husdNano = Number(me?.husd?.vaultNano ?? 0) || 0;
+const husdSymbol = "HUSD";
 
   const v2ClaimableNano = Number(rewardsV2?.claimableNano || "0");
   const canClaimV2 = v2ClaimableNano > 0;
@@ -606,6 +1114,8 @@ const [starterStep, setStarterStep] = useState(0);
       showError("MetaMask not found", "Please install MetaMask (or use a compatible wallet) to continue.");
       return;
     }
+
+    
     const p = new BrowserProvider((window as any).ethereum);
     await p.send("eth_requestAccounts", []);
     const net = await p.getNetwork();
@@ -727,7 +1237,7 @@ if (j && j.starterRtxGifted === false) {
       if (!r.ok || !j?.ok) throw new Error(j.error || `v2_claim_failed_${r.status}`);
 
       const paid = Number(j?.paidNano || "0");
-      setToast(paid > 0 ? `Claimed: +${fmtCredits8FromNano(paid)} ${creditsSymbol}` : "Nothing to claim");
+      setToast(paid > 0 ? `Claimed: +${fmtCredits8FromNano(paid)} ${husdSymbol}` : "Nothing to claim");
 
       await fetchMe(token);
       await fetchRewardsV2(token);
@@ -1065,8 +1575,23 @@ if (j && j.starterRtxGifted === false) {
     const reserveNano = Number(protocolStatus?.reserveNano || "0");
     const allocNano = Number(protocolStatus?.allocatedUnclaimedNano || "0");
     const availNano = Number(protocolStatus?.availableNano || "0");
+    const totalNetworkPower = Number(protocolStatus?.totalPower || "0"); // MH/s
+    // Mini visual scaling (420 max per GPU * 5 slots realistic per user, ma network può essere grande)
+// Facciamo una scala dinamica soft cap a 100k per la barra visuale
+const networkPowerScaleMax = 100000; 
+const networkPowerPercent = Math.min(
+  100,
+  totalNetworkPower > 0
+    ? (totalNetworkPower / networkPowerScaleMax) * 100
+    : 0
+);
 
     const displayPower = rigPower > 0 ? rigPower : Number(me?.powerScore || rewardsV2?.power || 0);
+
+    const rigWrapRef = useRef<HTMLDivElement | null>(null);
+    const slotRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+
 
     // Estimated next payout (requires totalPower)
     const totalPower = Number(protocolStatus?.totalPower || "0");
@@ -1098,37 +1623,70 @@ if (j && j.starterRtxGifted === false) {
               </button>
             </div>
           </div>
+<div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+  <div className="flex items-center justify-between">
+    <div className="text-zinc-400 text-xs tracking-wide">
+      TOTAL NETWORK POWER
+    </div>
+
+    <div className="flex items-center gap-2">
+      <div className="text-[10px] px-2 py-1 rounded-full bg-cyan-500/20 text-orange-500 font-bold">
+        LIVE
+      </div>
+      <div className="font-extrabold text-cyan-500">
+        {protocolLoading ? "..." : totalNetworkPower}{" "} MH/s
+      </div>
+    </div>
+  </div>
+
+  {/* Energy Flow Bar */}
+  <div className="mt-2 h-2 rounded-full bg-zinc-900 overflow-hidden relative">
+    <div
+      className="h-full bg-gradient-to-r from-red-400 via-orange-400 to-yellow-300 animate-pulse"
+      style={{ width: `${networkPowerPercent}%` }}
+    />
+  </div>
+
+  <div className="text-[11px] text-zinc-500 mt-2">
+    Real-time aggregated hash power contributing to revenue distribution.
+  </div>
+</div>
+
 
           <div className="mt-4 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm space-y-2">
             <div className="flex justify-between">
               <span className="text-zinc-400">Pool</span>
               <span className="font-extrabold">
-                {fmtCredits8FromNano(poolNano)} {creditsSymbol}
+                {fmtCredits8FromNano(poolNano)} {husdSymbol}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-400">Reserve</span>
               <span className="font-bold">
-                {fmtCredits8FromNano(reserveNano)} {creditsSymbol}
+                {fmtCredits8FromNano(reserveNano)} {husdSymbol}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-zinc-400">Allocated (unclaimed)</span>
               <span className="font-bold">
-                {fmtCredits8FromNano(allocNano)} {creditsSymbol}
+                {fmtCredits8FromNano(allocNano)} {husdSymbol}
               </span>
             </div>
+            
+
+            
             <div className="flex justify-between">
               <span className="text-zinc-400">Available</span>
               <span className="font-extrabold text-orange-400">
-                {fmtCredits8FromNano(availNano)} {creditsSymbol}
+                {fmtCredits8FromNano(availNano)} {husdSymbol}
               </span>
             </div>
 
             <div className="pt-2 mt-2 border-t border-zinc-800 flex justify-between">
+                
               <span className="text-zinc-400">Estimated next payout</span>
               <span className="font-extrabold text-cyan-300">
-                {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${creditsSymbol}`}
+                {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${husdSymbol}`}
               </span>
             </div>
             <div className="text-[11px] text-zinc-500">
@@ -1138,103 +1696,96 @@ if (j && j.starterRtxGifted === false) {
         </div>
 
         {/* Rig */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="font-bold text-lg">Your Rig</div>
-              <div className="text-zinc-400 text-sm mt-1">
-                Choose GPUs for your slots. Power is calculated from selected MH/s.
+<div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+  <div className="flex items-start justify-between gap-3">
+    <div>
+      <div className="font-bold text-lg">Your Rig</div>
+      <div className="text-zinc-400 text-sm mt-1">
+        Choose GPUs for your slots. Power is calculated from selected MH/s.
+      </div>
+    </div>
+
+    <div className="text-right">
+      <div className="text-zinc-400 text-xs">Rig Power</div>
+      <div className="text-2xl font-extrabold">{displayPower}</div>
+      <div className="text-zinc-500 text-xs">MH/s (beta)</div>
+    </div>
+  </div>
+
+  <div className="mt-3">
+    <button
+      onClick={() => token && fetchInventory(token)}
+      disabled={!token || busy || invLoading}
+      className="w-full text-xs px-3 py-3 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+    >
+      {invLoading ? "..." : "Sync GPUs"}
+    </button>
+  </div>
+
+  {/* SLOT GRID + OVERLAY CAVI (partono dagli slot) */}
+<div className="mt-4 relative pb-[100px] sm:pb-[100px]" ref={rigWrapRef}>
+  {/* overlay assoluto che parte dagli slot e va al mainframe */}
+  <RigWiringMainframe
+    rig={rig}
+    slotsUnlocked={slotsUnlocked}
+    loggedIn={!!token}
+    wrapRef={rigWrapRef}
+    slotRefs={slotRefs}
+  />
+
+  <div className="grid grid-cols-5 gap-2 relative z-[2]">
+    {Array.from({ length: 5 }).map((_, i) => {
+      const locked = i >= slotsUnlocked;
+      const g = rig[i];
+      return (
+        <button
+          key={i}
+          ref={(el) => {
+            slotRefs.current[i] = el;
+          }}
+          disabled={!token || locked}
+          onClick={() => setPickSlot(i)}
+          className={[
+            "rounded-xl border p-2 text-left min-h-[86px] relative overflow-hidden",
+            locked
+              ? "border-zinc-800 bg-black/20 text-zinc-600 cursor-not-allowed"
+              : "border-zinc-800 bg-black/30 hover:bg-zinc-900",
+          ].join(" ")}
+          title={locked ? "Locked slot" : "Select GPU"}
+        >
+          <div className="text-[10px] text-zinc-500">S{i + 1}</div>
+          {g ? (
+            <div className="mt-1">
+              <div className="w-full h-10 rounded-lg overflow-hidden border border-zinc-800 bg-black">
+                <img
+                  src={g.imagePath || "/assets/rtx-classic.webp"}
+                  alt={g.name || "GPU"}
+                  className="w-full h-full object-cover"
+                  draggable={false}
+                />
+              </div>
+              <div className="mt-1 text-[10px] text-zinc-300 font-semibold truncate">
+                {g.mhps} MH/s
               </div>
             </div>
-
-            {/* Rig power al posto di Sync GPUs */}
-            <div className="text-right">
-              <div className="text-zinc-400 text-xs">Rig Power</div>
-              <div className="text-2xl font-extrabold">{displayPower}</div>
-              <div className="text-zinc-500 text-xs">MH/s (beta)</div>
+          ) : (
+            <div className="mt-3 text-[10px] text-zinc-500">
+              {locked ? "LOCKED" : "EMPTY"}
             </div>
-          </div>
+          )}
+        </button>
+      );
+    })}
+  </div>
 
-          <div className="mt-3">
-            <button
-              onClick={() => token && fetchInventory(token)}
-              disabled={!token || busy || invLoading}
-              className="w-full text-xs px-3 py-3 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
-            >
-              {invLoading ? "..." : "Sync GPUs"}
-            </button>
-          </div>
+  {/* Spacer reale: rende alta l’area per mainframe/cavi (evita lo “schiacciamento”) */}
+  <div className="h-[100px] sm:h-[100px]" aria-hidden="true" />
+</div>
 
-          <div className="mt-4 grid grid-cols-5 gap-2">
-            {Array.from({ length: 5 }).map((_, i) => {
-              const locked = i >= slotsUnlocked;
-              const g = rig[i];
-              return (
-                <button
-                  key={i}
-                  disabled={!token || locked}
-                  onClick={() => setPickSlot(i)}
-                  className={[
-                    "rounded-xl border p-2 text-left min-h-[86px] relative overflow-hidden",
-                    locked
-                      ? "border-zinc-800 bg-black/20 text-zinc-600 cursor-not-allowed"
-                      : "border-zinc-800 bg-black/30 hover:bg-zinc-900",
-                  ].join(" ")}
-                  title={locked ? "Locked slot" : "Select GPU"}
-                >
-                  <div className="text-[10px] text-zinc-500">S{i + 1}</div>
-                  {g ? (
-                    <div className="mt-1">
-                      <div className="w-full h-10 rounded-lg overflow-hidden border border-zinc-800 bg-black">
-                        <img
-                          src={g.imagePath || "/assets/rtx-classic.webp"}
-                          alt={g.name || "GPU"}
-                          className="w-full h-full object-cover"
-                          draggable={false}
-                        />
-                      </div>
-                      <div className="mt-1 text-[10px] text-zinc-300 font-semibold truncate">{g.mhps} MH/s</div>
-                    </div>
-                  ) : (
-                    <div className="mt-3 text-[10px] text-zinc-500">{locked ? "LOCKED" : "EMPTY"}</div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* cablaggio + mainframe glow */}
-          <RigWiringAnimation
-  enabled={!!token}
-  slotActive={rig.map((g) => !!g).slice(0, 5)}
-/>
-
-          {/* Mining “simulation” */}
-          <div className="mt-4 rounded-xl border border-zinc-800 bg-black/30 p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-zinc-400">Mining simulation</div>
-              <div className="text-[11px] text-orange-300 font-semibold">LIVE</div>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <div className="h-2 flex-1 rounded-full bg-zinc-900 overflow-hidden">
-                <div className="h-full w-1/3 bg-orange-500/70 animate-pulse" />
-              </div>
-              <div className="h-2 flex-1 rounded-full bg-zinc-900 overflow-hidden">
-                <div className="h-full w-2/3 bg-cyan-400/40 animate-pulse" />
-              </div>
-              <div className="h-2 flex-1 rounded-full bg-zinc-900 overflow-hidden">
-                <div className="h-full w-1/2 bg-zinc-200/20 animate-pulse" />
-              </div>
-            </div>
-            <div className="text-zinc-500 text-xs mt-2">
-              This is UI-only for the beta while rewards are computed off-chain.
-            </div>
-          </div>
-
-          <div className="text-zinc-500 text-xs mt-3">
-            Slots unlocked: <span className="text-zinc-200 font-semibold">{slotsUnlocked}/5</span>. Configure in Marketplace.
-          </div>
-        </div>
+  <div className="text-zinc-500 text-xs mt-3">
+    Slots unlocked: <span className="text-zinc-200 font-semibold">{slotsUnlocked}/5</span>. Configure in Marketplace.
+  </div>
+</div>
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="font-bold text-lg">Your Position</div>
@@ -1279,22 +1830,22 @@ if (j && j.starterRtxGifted === false) {
               </div>
 
               <div className="flex justify-between">
-                <span className="text-zinc-400">Estimated next payout</span>
+                <span className="text-zinc-400">Est. next payout</span>
                 <span className="font-extrabold text-cyan-300">
-                  {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${creditsSymbol}`}
+                  {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${husdSymbol}`}
                 </span>
               </div>
 
               <div className="flex justify-between">
                 <span className="text-zinc-400">Claimable</span>
                 <span className="font-extrabold text-cyan-300">
-                  {rewardsV2Loading ? "..." : fmtCredits8FromNano(v2ClaimableNano)} {creditsSymbol}
+                  {rewardsV2Loading ? "..." : fmtCredits8FromNano(v2ClaimableNano)} {husdSymbol}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-400">Vault</span>
                 <span className="font-bold">
-                  {fmtCredits2FromNano(creditsNano)} {creditsSymbol}
+                  {fmtCredits2FromNano(husdNano)} {husdSymbol}
                 </span>
               </div>
 
@@ -1331,7 +1882,7 @@ if (j && j.starterRtxGifted === false) {
               </div>
 
               <div className="text-zinc-500 text-xs mt-3">
-                Claim adds to Vault Credits (beta). Marketplace + Vault require login.
+                Claim adds to Vault HUSD (beta). Marketplace + Vault require login.
               </div>
             </div>
           )}
@@ -1386,8 +1937,8 @@ if (j && j.starterRtxGifted === false) {
             <div>
               <div className="text-zinc-400 text-xs">Vault Credits</div>
               <div className="mt-1 text-2xl font-extrabold">
-                {fmtCredits2FromNano(creditsNano)}{" "}
-                <span className="text-zinc-400 text-sm font-semibold">{creditsSymbol}</span>
+                {fmtCredits2FromNano(husdNano)}{" "}
+                <span className="text-zinc-400 text-sm font-semibold">{husdSymbol}</span>
               </div>
               <div className="text-zinc-500 text-xs mt-1">Use credits to unlock slots and open packs (beta).</div>
             </div>
@@ -1430,7 +1981,7 @@ if (j && j.starterRtxGifted === false) {
                 >
                   <div className="font-extrabold">Slot {s}</div>
                   <div className="text-xs opacity-80 mt-1">
-                    {already ? "Unlocked" : locked ? "Unlock previous first" : `${price} ${creditsSymbol}`}
+                    {already ? "Unlocked" : locked ? "Unlock previous first" : `${price} ${husdSymbol}`}
                   </div>
                 </button>
               );
@@ -1456,7 +2007,7 @@ if (j && j.starterRtxGifted === false) {
           <div className="mt-3 grid grid-cols-1 gap-2">
             {packs.map((p) => {
               const priceNano = Number(p.priceCredits || 0) * 1e8;
-              const afford = creditsNano >= priceNano;
+              const afford = husdNano >= priceNano;
               return (
                 <button
                   key={p.key}
@@ -1470,7 +2021,7 @@ if (j && j.starterRtxGifted === false) {
                   <div className="flex items-center justify-between">
                     <div className="font-extrabold">{p.name}</div>
                     <div className="text-xs text-orange-300 font-bold">
-                      {p.priceCredits} {creditsSymbol}
+                      {p.priceCredits} {husdSymbol}
                     </div>
                   </div>
                   <div className="text-xs text-zinc-500 mt-1">
@@ -1545,13 +2096,22 @@ if (j && j.starterRtxGifted === false) {
   }
 
   function LeaderboardTab() {
+    const totalNetworkPower = Number(protocolStatus?.totalPower || "0");
     return (
       <div className="space-y-4">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="font-bold text-lg">Leaderboard</div>
-              <div className="text-zinc-400 text-sm">Public leaderboard (Power Score).</div>
+              <div className="text-zinc-400 text-sm">
+  Public leaderboard (Power Score).
+  <span className="block text-lg mt-1">
+    Total network power: <span className="text-cyan-500 font-bold">{totalNetworkPower} MH/s</span> 
+  </span>
+</div>
+
+
+
             </div>
             <button
               onClick={() => fetchLeaderboardPublic().catch(() => {})}
@@ -1562,6 +2122,10 @@ if (j && j.starterRtxGifted === false) {
             </button>
           </div>
         </div>
+
+
+
+        
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="font-bold mb-3">Top Players</div>
@@ -1631,8 +2195,8 @@ if (j && j.starterRtxGifted === false) {
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="text-zinc-400 text-xs">Vault Credits</div>
           <div className="mt-1 text-3xl font-extrabold tracking-tight">
-            {fmtCredits2FromNano(creditsNano)}{" "}
-            <span className="text-zinc-400 text-sm font-semibold">{creditsSymbol}</span>
+            {fmtCredits2FromNano(husdNano)}{" "}
+            <span className="text-zinc-400 text-sm font-semibold">{husdSymbol}</span>
           </div>
 
           <div className="text-zinc-500 text-xs mt-2">Beta: Vault is locked (no withdrawals).</div>
@@ -1659,7 +2223,7 @@ if (j && j.starterRtxGifted === false) {
           <div className="text-zinc-400 text-xs">V2 Claimable</div>
           <div className="mt-1 text-2xl font-extrabold">
             {rewardsV2Loading ? "..." : fmtCredits8FromNano(v2ClaimableNano)}{" "}
-            <span className="text-zinc-400 text-sm font-semibold">{creditsSymbol}</span>
+            <span className="text-zinc-400 text-sm font-semibold">{husdSymbol}</span>
           </div>
 
           <div className="mt-3 flex gap-2">
@@ -1730,7 +2294,7 @@ if (j && j.starterRtxGifted === false) {
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold text-zinc-200">
                         {sign}
-                        {fmtCredits2FromNano(it.amountNano)} {creditsSymbol}
+                        {fmtCredits2FromNano(it.amountNano)} {husdSymbol}
                       </div>
                       <div className="text-xs text-zinc-500">{fmtWhen(it.createdAt)}</div>
                     </div>
@@ -1741,7 +2305,7 @@ if (j && j.starterRtxGifted === false) {
             )}
           </div>
 
-          <div className="text-zinc-500 text-xs mt-3">Activity tracks all Vault Credits movements.</div>
+          <div className="text-zinc-500 text-xs mt-3">Activity tracks all Vault HUSD movements.</div>
         </div>
       </div>
     );
@@ -1789,16 +2353,29 @@ if (j && j.starterRtxGifted === false) {
           </div>
 
           <div className="flex items-center gap-2">
-            <HeaderAuthButton />
-            <button
-              onClick={() => fetchProtocolStatus().catch(() => {})}
-              className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900"
-              disabled={busy || protocolLoading}
-              title="Refresh public protocol status"
-            >
-              {protocolLoading ? "..." : "Status"}
-            </button>
-          </div>
+  {/* Login/Logout sempre visibile e stateful */}
+  <button
+    onClick={() => {
+      if (token) return logout();
+      if (!address) return connectWallet();
+      return login();
+    }}
+    disabled={busy}
+    className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+    title={token ? "Logout" : !address ? "Connect wallet" : "Sign & Enter"}
+  >
+    {busy ? "Signing..." : token ? "Logout" : !address ? "Connect" : "Sign & Enter"}
+  </button>
+
+  <button
+    onClick={() => fetchProtocolStatus().catch(() => {})}
+    className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+    disabled={busy || protocolLoading}
+    title="Refresh public protocol status"
+  >
+    {protocolLoading ? "..." : "Status"}
+  </button>
+</div>
         </div>
 
         {/* HERO SEMPRE VISIBILE */}
