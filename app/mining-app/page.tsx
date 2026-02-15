@@ -112,6 +112,24 @@ type MeResponse = {
   };
 };
 
+// ✅ Rewards V2 types
+type RewardsV2Response = {
+  ok: boolean;
+  today: number;
+  power: number;
+  claimableNano: string; // bigint as string
+  daily?: any;
+};
+
+type RewardsV2ClaimResponse = {
+  ok: boolean;
+  paidNano: string;
+  partial: boolean;
+  claimableBeforeNano: string;
+  claimableAfterNano: string;
+  meta?: any;
+};
+
 type TabKey = "mining" | "marketplace" | "leaderboard" | "vault";
 
 type PopupState =
@@ -134,6 +152,12 @@ function fmtHusd8FromNano(nano?: number) {
 function fmtCredits2FromNano(nano?: number) {
   const v = Math.abs(Number(nano || 0)) / 1e8;
   return v.toFixed(2);
+}
+
+// ✅ for V2 claimable: keep more precision
+function fmtCredits8FromNano(nano?: number) {
+  const v = Number(nano || 0) / 1e8;
+  return v.toFixed(8);
 }
 
 function clampPct(x: number) {
@@ -255,24 +279,28 @@ export default function Page() {
 
   const [equipModal, setEquipModal] = useState<null | { slotIndex: number }>(null);
 
+  // ✅ Rewards V2 state
+  const [rewardsV2, setRewardsV2] = useState<RewardsV2Response | null>(null);
+  const [rewardsV2Loading, setRewardsV2Loading] = useState(false);
+
   useEffect(() => {
-  if (!equipModal) return;
+    if (!equipModal) return;
 
-  const prev = document.body.style.overflow;
-  document.body.style.overflow = "hidden";
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
-  return () => {
-    document.body.style.overflow = prev;
-  };
-}, [equipModal]);
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [equipModal]);
 
- useEffect(() => {
-  // 🔒 while Equip modal is open, freeze UI ticks to avoid scroll-jump
-  if (equipModal) return;
+  useEffect(() => {
+    // 🔒 while Equip modal is open, freeze UI ticks to avoid scroll-jump
+    if (equipModal) return;
 
-  const t = setInterval(() => setNow(Date.now()), 1000);
-  return () => clearInterval(t);
-}, [equipModal]);
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [equipModal]);
 
   useEffect(() => {
     const t = localStorage.getItem("hash42_token");
@@ -291,33 +319,34 @@ export default function Page() {
     const t = setTimeout(() => setToast(null), 2200);
     return () => clearTimeout(t);
   }, [toast]);
+  
 
   useEffect(() => {
     setUiMiningBalanceNano(Number(me?.husd?.balanceNano || 0));
   }, [me?.husd?.balanceNano]);
 
-useEffect(() => {
-  if (!token) return;
-  if (!me?.mining?.active) return;
+  useEffect(() => {
+    if (!token) return;
+    if (!me?.mining?.active) return;
 
-  // 🔒 freeze while Equip modal is open (otherwise scrolling will jump)
-  if (equipModal) return;
+    // 🔒 freeze while Equip modal is open (otherwise scrolling will jump)
+    if (equipModal) return;
 
-  const rate = Number(me?.mining?.rateNanoPerSec ?? 11);
-  const uiTick = setInterval(() => {
-    setUiMiningBalanceNano((x) => x + rate);
-  }, 1000);
+    const rate = Number(me?.mining?.rateNanoPerSec ?? 11);
+    const uiTick = setInterval(() => {
+      setUiMiningBalanceNano((x) => x + rate);
+    }, 1000);
 
-  const refresh = setInterval(() => {
-    fetchMe(token).catch(() => {});
-    fetchRigSlots(token).catch(() => {});
-  }, 15000);
+    const refresh = setInterval(() => {
+      fetchMe(token).catch(() => {});
+      fetchRigSlots(token).catch(() => {});
+    }, 15000);
 
-  return () => {
-    clearInterval(uiTick);
-    clearInterval(refresh);
-  };
-}, [token, me?.mining?.active, me?.mining?.rateNanoPerSec, equipModal]);
+    return () => {
+      clearInterval(uiTick);
+      clearInterval(refresh);
+    };
+  }, [token, me?.mining?.active, me?.mining?.rateNanoPerSec, equipModal]);
 
   useEffect(() => {
     if (!token) return;
@@ -345,26 +374,28 @@ useEffect(() => {
     if (!token) return;
     if (tab !== "mining") return;
     fetchRigSlots(token).catch(() => {});
+    // ✅ fetch rewards on mining tab too
+    fetchRewardsV2(token).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, token]);
 
   const miningActive = !!me?.mining?.active;
 
   const invSorted = useMemo(() => {
-  const copy = [...inv];
-  copy.sort((a, b) => {
-    const dm = (b.mhps || 0) - (a.mhps || 0);
-    if (dm !== 0) return dm;
-    // tie-breaker: rarità e poi id
-    const ra = (a.rarity || "").toLowerCase();
-    const rb = (b.rarity || "").toLowerCase();
-    const order = ["legendary", "epic", "rare", "uncommon", "common"];
-    const dr = (order.indexOf(rb) - order.indexOf(ra));
-    if (dr !== 0) return dr;
-    return (b.userGpuId || 0) - (a.userGpuId || 0);
-  });
-  return copy;
-}, [inv]);
+    const copy = [...inv];
+    copy.sort((a, b) => {
+      const dm = (b.mhps || 0) - (a.mhps || 0);
+      if (dm !== 0) return dm;
+      // tie-breaker: rarità e poi id
+      const ra = (a.rarity || "").toLowerCase();
+      const rb = (b.rarity || "").toLowerCase();
+      const order = ["legendary", "epic", "rare", "uncommon", "common"];
+      const dr = order.indexOf(rb) - order.indexOf(ra);
+      if (dr !== 0) return dr;
+      return (b.userGpuId || 0) - (a.userGpuId || 0);
+    });
+    return copy;
+  }, [inv]);
 
   const endsAtMs = useMemo(() => {
     const s = me?.mining?.endsAt;
@@ -404,6 +435,10 @@ useEffect(() => {
   const totalClaimedNano = Number(me?.husd?.totalClaimedNano || 0);
 
   const canClaim = capNano > 0 && miningBalanceNano >= capNano;
+
+  // ✅ V2 claimable
+  const v2ClaimableNano = Number(rewardsV2?.claimableNano || "0");
+  const canClaimV2 = v2ClaimableNano > 0;
 
   function showError(title: string, message: string) {
     setPopup({ title, message });
@@ -481,6 +516,7 @@ useEffect(() => {
     setAddress(null);
     setProvider(null);
     setMe(null);
+    setRewardsV2(null);
     setActivity([]);
     setRigSlots(null);
     setEquipModal(null);
@@ -493,6 +529,9 @@ useEffect(() => {
     const j = await r.json().catch(() => null);
     if (!r.ok) return;
     setMe(j);
+
+    // ✅ keep rewards in sync whenever /me is fetched
+    fetchRewardsV2(t).catch(() => {});
 
     if (!j?.username) {
       setShowUsername(true);
@@ -572,6 +611,49 @@ useEffect(() => {
       setInv(Array.isArray(j?.items) ? j!.items : []);
     } finally {
       setInvLoading(false);
+    }
+  }
+
+  // ✅ Rewards V2 fetch
+  async function fetchRewardsV2(t: string) {
+    setRewardsV2Loading(true);
+    try {
+      const r = await fetch(`${API}/rewards/v2`, { headers: { Authorization: `Bearer ${t}` } });
+      const j = (await r.json().catch(() => null)) as RewardsV2Response | null;
+      if (!r.ok || !j?.ok) return;
+      setRewardsV2(j);
+    } finally {
+      setRewardsV2Loading(false);
+    }
+  }
+
+  // ✅ Rewards V2 claim
+  async function claimRewardsV2() {
+    if (!token) return;
+    setBusy(true);
+    if (popup) setPopup(null);
+    try {
+      const r = await fetch(`${API}/rewards/v2/claim`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const j = (await r.json().catch(() => ({}))) as RewardsV2ClaimResponse | any;
+      if (!r.ok || !j?.ok) throw new Error(j.error || `v2_claim_failed_${r.status}`);
+
+      const paid = Number(j?.paidNano || "0");
+      setToast(paid > 0 ? `V2 claimed: +${fmtCredits8FromNano(paid)} ${creditsSymbol}` : "Nothing to claim");
+
+      // refresh balances + rewards
+      await fetchMe(token);
+      await fetchRewardsV2(token);
+
+      if (tab === "vault") {
+        await fetchActivity(token);
+      }
+    } catch (e: any) {
+      showError("V2 Claim failed", e?.message || "V2 Claim failed");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -895,6 +977,50 @@ useEffect(() => {
           </div>
         </div>
 
+        {/* ✅ NEW: V2 Rewards card */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-zinc-400 text-xs">Revenue Rewards (V2)</div>
+              <div className="mt-1 text-2xl font-extrabold tracking-tight">
+                {rewardsV2Loading ? "..." : fmtCredits8FromNano(v2ClaimableNano)}{" "}
+                <span className="text-zinc-400 text-sm font-semibold">{creditsSymbol}</span>
+              </div>
+              <div className="text-zinc-500 text-xs mt-1">
+                Based on your Power Score. Claim adds to Vault Credits. (beta)
+              </div>
+            </div>
+
+            <button
+              onClick={claimRewardsV2}
+              disabled={busy || !canClaimV2}
+              className={[
+                "shrink-0 px-4 py-3 rounded-xl font-extrabold text-sm border",
+                canClaimV2
+                  ? "bg-cyan-400 text-black border-cyan-400"
+                  : "bg-cyan-400/10 text-cyan-200 border-cyan-400/20",
+                "disabled:opacity-100 disabled:cursor-not-allowed",
+              ].join(" ")}
+              title={canClaimV2 ? "Claim V2 rewards to Vault" : "No claimable rewards"}
+            >
+              Claim V2
+            </button>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between text-xs">
+            <div className="text-zinc-500">
+              Power: <span className="text-orange-400 font-semibold">{Number(rewardsV2?.power || me?.powerScore || 0)}</span>
+            </div>
+            <button
+              onClick={() => token && fetchRewardsV2(token)}
+              disabled={busy || rewardsV2Loading}
+              className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+            >
+              {rewardsV2Loading ? "..." : "Sync Rewards"}
+            </button>
+          </div>
+        </div>
+
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="font-bold">GPU Slots</div>
@@ -1025,6 +1151,10 @@ useEffect(() => {
               <span className="font-bold">{fmtHusd8FromNano(miningBalanceNano)} HUSD</span>
             </div>
             <div className="flex justify-between">
+              <span className="text-zinc-400">V2 claimable</span>
+              <span className="font-bold">{fmtCredits8FromNano(v2ClaimableNano)} {creditsSymbol}</span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-zinc-400">Vault credits</span>
               <span className="font-bold">{fmtCredits2FromNano(vaultNano)} {creditsSymbol}</span>
             </div>
@@ -1068,10 +1198,10 @@ useEffect(() => {
               </div>
 
               <div
-  className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1 overscroll-contain"
-  onWheel={(e) => e.stopPropagation()}
-  onTouchMove={(e) => e.stopPropagation()}
->
+                className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1 overscroll-contain"
+                onWheel={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+              >
                 {invLoading ? (
                   <>
                     <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
@@ -1252,10 +1382,10 @@ useEffect(() => {
           </div>
 
           <div
-  className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1 overscroll-contain"
-  onWheel={(e) => e.stopPropagation()}
-  onTouchMove={(e) => e.stopPropagation()}
->
+            className="mt-3 space-y-2 max-h-[55vh] overflow-y-auto pr-1 overscroll-contain"
+            onWheel={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+          >
             {invLoading ? (
               <>
                 <div className="h-16 rounded-xl bg-zinc-900 animate-pulse" />
@@ -1525,14 +1655,15 @@ useEffect(() => {
             </button>
           </div>
         )}
-{token && (
-  <div className="space-y-4">
-    {tab === "mining" && MiningTab()}
-    {tab === "marketplace" && MarketplaceTab()}
-    {tab === "leaderboard" && LeaderboardTab()}
-    {tab === "vault" && VaultTab()}
-  </div>
-)}
+
+        {token && (
+          <div className="space-y-4">
+            {tab === "mining" && MiningTab()}
+            {tab === "marketplace" && MarketplaceTab()}
+            {tab === "leaderboard" && LeaderboardTab()}
+            {tab === "vault" && VaultTab()}
+          </div>
+        )}
 
         {toast && (
           <div className="fixed left-1/2 -translate-x-1/2 bottom-24 px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-sm">
@@ -1576,6 +1707,7 @@ useEffect(() => {
             </div>
           </div>
         )}
+        
 
         {token && openingPack && (
           <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
