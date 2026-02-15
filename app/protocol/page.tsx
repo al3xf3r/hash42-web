@@ -915,7 +915,27 @@ function RigWiringMainframe({
   );
 }
 
+// ---------- formatting helpers (mobile-friendly) ----------
+const fmtHusd = (v: number | string, decimalsDesktop = 6, decimalsMobile = 2) => {
+  const n = typeof v === "string" ? Number(v) : v;
+  if (!Number.isFinite(n)) return "-";
 
+  const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
+  const d = isMobile ? decimalsMobile : decimalsDesktop;
+
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: d,
+  });
+};
+
+const fmtMHs = (v: number | string) => {
+  const n = typeof v === "string" ? Number(v) : v;
+  if (!Number.isFinite(n)) return "-";
+
+  // per "Total Network Power" di solito 0 decimali bastano
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+};
 
 
 
@@ -1733,7 +1753,7 @@ const networkPowerPercent = Math.min(
     slotRefs={slotRefs}
   />
 
-  <div className="grid grid-cols-5 gap-1 relative z-[2]">
+  <div className="grid grid-cols-5 gap-0.3 relative z-[2]">
     {Array.from({ length: 5 }).map((_, i) => {
       const locked = i >= slotsUnlocked;
       const g = rig[i];
