@@ -1672,18 +1672,35 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
     </div>
   </div>
 
-  {/* Energy Flow Bar */}
-  <div className="mt-2 h-2 rounded-full bg-zinc-900 overflow-hidden relative">
-  {/* glow sempre pieno */}
-  <div className="absolute inset-0 opacity-60">
-    <div className="w-full h-full bg-gradient-to-r from-red-400 via-orange-400 to-yellow-300 animate-pulse" />
+  {/* Energy Flow Bar (premium) */}
+<div className="mt-2">
+  <div className="h-2.5 rounded-full bg-zinc-900/80 overflow-hidden relative border border-zinc-800">
+    {/* glow always full */}
+    <div className="absolute inset-0">
+      <div className="w-full h-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 opacity-35 blur-[2px] animate-pulse" />
+    </div>
+
+    {/* subtle moving shine */}
+    <div className="absolute inset-0 opacity-20">
+      <div className="w-1/3 h-full bg-white/30 blur-md animate-[shine_1.8s_linear_infinite]" />
+    </div>
+
+    {/* fill */}
+    <div
+      className="relative h-full rounded-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400"
+      style={{
+        width: `${Math.max(2, networkPowerPercent)}%`, // minimo visibile
+        boxShadow: "0 0 18px rgba(249,115,22,0.45)",
+      }}
+    />
   </div>
 
-  {/* fill percentuale sopra (più solido) */}
-  <div
-    className="relative h-full bg-red-400/70"
-    style={{ width: `${networkPowerPercent}%` }}
-  />
+  <style jsx>{`
+    @keyframes shine {
+      0% { transform: translateX(-40%); }
+      100% { transform: translateX(340%); }
+    }
+  `}</style>
 </div>
 
   <div className="text-[11px] text-zinc-500 mt-2">
@@ -2135,7 +2152,13 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
   }
 
   function LeaderboardTab() {
+    
     const totalNetworkPower = Number(protocolStatus?.totalPower || "0");
+    const networkPowerScaleMax = 100000;
+const networkPowerPercent = Math.min(
+  100,
+  totalNetworkPower > 0 ? (totalNetworkPower / networkPowerScaleMax) * 100 : 0
+);
     return (
       <div className="space-y-4">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
@@ -2144,9 +2167,37 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
               <div className="font-bold text-lg">Leaderboard</div>
               <div className="text-zinc-400 text-sm">
   Public leaderboard (Power Score).
-  <span className="block text-lg mt-1">
-    Total network power: <span className="text-cyan-500 font-bold">{totalNetworkPower} MH/s</span> 
-  </span>
+ <div className="mt-3">
+  <div className="text-[11px] text-zinc-500 mb-2">
+    Live network power signal
+  </div>
+
+  {/* Energy Flow Bar (same as Protocol) */}
+  <div className="h-2.5 rounded-full bg-zinc-900/80 overflow-hidden relative border border-zinc-800">
+    <div className="absolute inset-0">
+      <div className="w-full h-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 opacity-35 blur-[2px] animate-pulse" />
+    </div>
+
+    <div className="absolute inset-0 opacity-20">
+      <div className="w-1/3 h-full bg-white/30 blur-md animate-[shine_1.8s_linear_infinite]" />
+    </div>
+
+    <div
+      className="relative h-full rounded-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400"
+      style={{
+        width: `${Math.max(2, networkPowerPercent)}%`,
+        boxShadow: "0 0 18px rgba(249,115,22,0.45)",
+      }}
+    />
+  </div>
+
+  <style jsx>{`
+    @keyframes shine {
+      0% { transform: translateX(-40%); }
+      100% { transform: translateX(340%); }
+    }
+  `}</style>
+</div>
 </div>
 
 
@@ -2180,7 +2231,7 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
             <div className="text-zinc-500 text-sm">No data yet.</div>
           ) : (
             <div className="space-y-2">
-              {lb.items.map((it) => (
+              {lb.items.slice(0, 10).map((it) => (
                 <div key={it.userId} className="rounded-xl border border-zinc-800 bg-black/30 p-3">
                   <div className="flex items-center justify-between">
                     <div className="font-extrabold text-orange-400">#{it.rank}</div>
