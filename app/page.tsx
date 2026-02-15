@@ -1,33 +1,34 @@
-//app/page.tsx
-
+// app/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 
+const APP_URL = "https://protocol.hash42.xyz";
+const LABS_URL = "https://hash42.xyz/labs";
+const DISCOVER_URL = "https://hash42.xyz/discover";
+
 export default function HomePage() {
   const year = useMemo(() => new Date().getFullYear(), []);
 
-  // --- Animated preview balance ---
-  const [balance, setBalance] = useState<number>(4.20933021);
+  // --- Animated preview metric (non-financial / preview only) ---
+  const [rev, setRev] = useState<number>(42.0137);
 
   useEffect(() => {
-    const inc = 0.0037; // ~0.37 cents/sec (preview)
+    const inc = 0.018; // preview pulse
     const t = setInterval(() => {
-      setBalance((v) => {
+      setRev((v) => {
         const next = v + inc;
-        // keep it "reasonable" for preview: loop between 4.20 and 9.99
-        if (next >= 9.99) return 4.20933021;
+        if (next >= 84.0) return 42.0137;
         return next;
       });
     }, 1000);
     return () => clearInterval(t);
   }, []);
 
-  const balanceText = useMemo(() => `$${balance.toFixed(8)}`, [balance]);
+  const revText = useMemo(() => `$${rev.toFixed(4)}`, [rev]);
 
   // --- Mobile menu ---
   const [menuOpen, setMenuOpen] = useState(false);
-
   const closeMenu = () => setMenuOpen(false);
 
   return (
@@ -50,30 +51,33 @@ export default function HomePage() {
       {/* Top bar */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/35 border-b border-white/5">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <a href="/" className="flex items-center gap-3">
             <img
               src="/assets/icon-h42.webp"
               alt="H42 icon"
               className="h-9 w-9 rounded-xl border border-white/10 bg-black/40"
             />
             <div>
-              <div className="font-extrabold tracking-tight text-lg">
+              <div className="font-extrabold tracking-tight text-lg leading-none">
                 <span className="text-white">HASH</span>
                 <span className="text-[#ff6a00]">42</span>
               </div>
               <div className="text-[11px] text-white/55 -mt-0.5">
-                Mining App • Beta
+                Labs • Protocol
               </div>
             </div>
-          </div>
+          </a>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-6 text-sm text-white/75">
-            <a href="#how" className="hover:text-white">
-              How it works
+            <a href="#protocol" className="hover:text-white">
+              Protocol
             </a>
-            <a href="#economy" className="hover:text-white">
-              Economy
+            <a href="#labs" className="hover:text-white">
+              Labs
+            </a>
+            <a href="#tech" className="hover:text-white">
+              Technology
             </a>
             <a href="#roadmap" className="hover:text-white">
               Roadmap
@@ -87,11 +91,23 @@ export default function HomePage() {
           </nav>
 
           <div className="flex items-center gap-2 relative">
+            {/* NEW: secondary CTA buttons (desktop) */}
+            <div className="hidden sm:flex items-center gap-2">
+              <a
+                href={LABS_URL}
+                className="px-4 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white font-semibold text-sm"
+              >
+                Labs
+              </a>
+              
+            </div>
+
+            {/* Primary CTA */}
             <a
-              href="https://hash42.xyz/mining-app"
+              href={APP_URL}
               className="px-4 py-2 rounded-xl bg-[#ff6a00] hover:bg-[#ff8a2e] text-black font-semibold text-sm shadow-[0_0_40px_rgba(255,106,0,0.18)]"
             >
-              Open app
+              Open App
             </a>
 
             {/* Mobile hamburger */}
@@ -102,13 +118,7 @@ export default function HomePage() {
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                className="opacity-90"
-              >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="opacity-90">
                 <path
                   d="M4 7h16M4 12h16M4 17h16"
                   stroke="currentColor"
@@ -120,17 +130,21 @@ export default function HomePage() {
 
             {/* Mobile dropdown */}
             {menuOpen && (
-              <div className="md:hidden absolute right-0 top-12 w-56 rounded-2xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-[0_0_40px_rgba(46,108,255,0.18)] overflow-hidden">
+              <div className="md:hidden absolute right-0 top-12 w-64 rounded-2xl border border-white/10 bg-black/90 backdrop-blur-xl shadow-[0_0_40px_rgba(46,108,255,0.18)] overflow-hidden">
                 <div className="p-2">
                   {[
-                    ["How it works", "#how"],
-                    ["Economy", "#economy"],
+                    ["Open App", APP_URL],
+                    ["Labs (page)", "/labs"],
+                    
+                    ["Protocol", "#protocol"],
+                    ["Labs (section)", "#labs"],
+                    ["Technology", "#tech"],
                     ["Roadmap", "#roadmap"],
                     ["FAQ", "#faq"],
                     ["Contacts", "#contacts"],
                   ].map(([label, href]) => (
                     <a
-                      key={href}
+                      key={`${label}-${href}`}
                       href={href}
                       onClick={closeMenu}
                       className="block px-3 py-2 rounded-xl text-sm text-white/80 hover:text-white hover:bg-white/10"
@@ -138,9 +152,7 @@ export default function HomePage() {
                       {label}
                     </a>
                   ))}
-                  <div className="mt-2 px-3 pb-1 text-[11px] text-white/40">
-                    Menu
-                  </div>
+                  <div className="mt-2 px-3 pb-1 text-[11px] text-white/40">Menu</div>
                 </div>
               </div>
             )}
@@ -155,63 +167,56 @@ export default function HomePage() {
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-xs text-white/70">
                 <span className="h-2 w-2 rounded-full bg-[#ff6a00]" />
-                Daily mining. Sustainable economy. Built for growth.
+                HASH42 ● The First Gamified Revenue Protocol
               </div>
 
               <h1 className="mt-4 text-4xl md:text-5xl font-extrabold leading-tight md:leading-[1.12] pb-1 tracking-tight">
-                A daily mining game
+                Earn real protocol revenue
                 <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#4f8fff] via-white to-[#ff8a2e]">
-                  designed to last.
+                  through Power.
                 </span>
               </h1>
 
               <p className="mt-4 text-white/70 text-base md:text-lg leading-relaxed">
-                Hash42 is an idle mining experience where rewards are paced by
-                design. Start mining, come back daily, and build your rig
-                through GPU packs, slots, and future marketplace trading.
+                Hash42 Protocol is a gamified revenue protocol engineered for sustainability, transparency, and scale.
+                No emissions. No inflation. Only revenue. Built by Hash42 Labs.
               </p>
 
               <div className="mt-6 flex flex-col sm:flex-row gap-3">
                 <a
-                  href="#cta"
+                  href={APP_URL}
                   className="px-5 py-3 rounded-2xl bg-[#ff6a00] hover:bg-[#ff8a2e] text-black font-semibold shadow-[0_0_40px_rgba(255,106,0,0.18)] text-center"
                 >
-                  Start mining
+                  Open App
                 </a>
-                <a
-                  href="#how"
-                  className="px-5 py-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white font-semibold text-center"
-                >
-                  Read how it works
-                </a>
+                
               </div>
 
               <div className="mt-6 grid grid-cols-3 gap-3">
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <div className="text-xs text-white/60">Cycle</div>
-                  <div className="mt-1 font-bold">24h</div>
-                  <div className="text-xs text-white/45 mt-1">
-                    Daily check-in
-                  </div>
+                  <div className="text-xs text-white/60">Model</div>
+                  <div className="mt-1 font-bold">Revenue-first</div>
+                  <div className="text-xs text-white/45 mt-1">No inflation</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <div className="text-xs text-white/60">Currency</div>
-                  <div className="mt-1 font-bold">USD-based</div>
-                  <div className="text-xs text-white/45 mt-1">HUSD in beta</div>
+                  <div className="text-xs text-white/60">Distribution</div>
+                  <div className="mt-1 font-bold">Continuous</div>
+                  <div className="text-xs text-white/45 mt-1">Programmatic</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <div className="text-xs text-white/60">Anti-spam</div>
-                  <div className="mt-1 font-bold">Built-in</div>
-                  <div className="text-xs text-white/45 mt-1">
-                    Difficulty & caps
-                  </div>
+                  <div className="text-xs text-white/60">Focus</div>
+                  <div className="mt-1 font-bold">Scale</div>
+                  <div className="text-xs text-white/45 mt-1">Anti-abuse</div>
                 </div>
+              </div>
+
+              <div className="mt-6 text-xs text-white/45">
+                Hash42 Labs is a Web3 infrastructure studio building systems designed for sustainability, transparency, and scale.
               </div>
             </div>
 
-            {/* RIGHT column: FIXED glow clipping */}
+            {/* Right column */}
             <div className="relative">
-              {/* Wrapper that CLIPS the glow (this fixes the problem under the button) */}
               <div className="relative rounded-[32px] overflow-hidden">
                 <div className="pointer-events-none absolute -inset-6 rounded-[32px] bg-[radial-gradient(circle_at_top,rgba(46,108,255,0.25),transparent_55%),radial-gradient(circle_at_bottom,rgba(255,106,0,0.18),transparent_50%)] blur-2xl" />
 
@@ -219,235 +224,296 @@ export default function HomePage() {
                   <div className="p-3 border-b border-white/10 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="h-2.5 w-2.5 rounded-full bg-[#ff6a00]" />
-                      <span className="text-xs text-white/70">
-                        Hash42 Mining App
-                      </span>
+                      <span className="text-xs text-white/70">Hash42 App</span>
                     </div>
-                    <span className="text-xs text-white/45">Beta preview</span>
+                    <span className="text-xs text-white/45">Live preview</span>
                   </div>
 
                   <div className="p-4">
                     <img
                       src="/assets/hero-hash42-miningapp.webp"
-                      alt="Hash42 hero"
+                      alt="Hash42 Protocol preview"
                       className="w-full md:w-[92%] md:mx-auto rounded-2xl border border-white/10"
                     />
 
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-xs text-white/60">Balance</div>
-                          <div className="text-2xl font-extrabold mt-1 tabular-nums">
-                            {balanceText}
-                          </div>
+                          <div className="text-xs text-white/60">Protocol revenue (preview)</div>
+                          <div className="text-2xl font-extrabold mt-1 tabular-nums">{revText}</div>
                           <div className="text-xs text-white/50 mt-1">
-                            HashUSD • updates every second
+                            Animated preview metric • not financial data
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-white/60">Status</div>
                           <div className="mt-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs">
                             <span className="h-2 w-2 rounded-full bg-[#2e6cff]" />
-                            Mining (24h)
+                            Online
                           </div>
                         </div>
                       </div>
 
                       <div className="mt-4 h-2 rounded-full bg-white/5 overflow-hidden">
-                        <div className="h-full w-1/3 bg-gradient-to-r from-[#2e6cff] to-[#ff6a00]" />
+                        <div className="h-full w-[58%] bg-gradient-to-r from-[#2e6cff] to-[#ff6a00]" />
                       </div>
 
                       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                         <div className="rounded-xl border border-white/10 bg-black/40 p-3">
-                          <div className="text-xs text-white/60">Active slots</div>
-                          <div className="font-bold mt-1">1 / 5</div>
+                          <div className="text-xs text-white/60">Emissions</div>
+                          <div className="font-bold mt-1">None</div>
                         </div>
                         <div className="rounded-xl border border-white/10 bg-black/40 p-3">
-                          <div className="text-xs text-white/60">Payout cap</div>
-                          <div className="font-bold mt-1">$10.00</div>
+                          <div className="text-xs text-white/60">Inflation</div>
+                          <div className="font-bold mt-1">None</div>
                         </div>
                       </div>
 
                       <a
-                        href="https://hash42.xyz/mining-app"
+                        href={APP_URL}
                         className="mt-4 mb-2 w-full inline-flex justify-center px-4 py-3 rounded-xl bg-[#ff6a00] hover:bg-[#ff8a2e] text-black font-semibold"
                       >
-                        Open app
+                        Open App
                       </a>
+
+                      <div className="mt-3 text-[11px] text-white/45">
+                        App runs on <span className="text-white/70 font-semibold">protocol.hash42.xyz</span>.{" "}
+                        <span className="text-white/50">
+                          hash42.xyz/protocol redirects to the same app.
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Text OUTSIDE the clipped box, with extra spacing */}
               <div className="mt-6 text-xs text-white/45">
-                The beta runs with hash dollars (HUSD). No real USDC is distributed.
+                This page is the institutional entry point. The app UI and flows may evolve while the core remains revenue-first.
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Social proof / positioning */}
-      <section className="mx-auto max-w-6xl px-4 pb-10">
+      {/* Protocol core */}
+      <section id="protocol" className="mx-auto max-w-6xl px-4 pb-10">
         <div className="rounded-[28px] border border-white/10 bg-white/5 p-6 md:p-8">
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
             <div>
-              <div className="text-sm text-white/60">Principle</div>
-              <div className="mt-1 text-xl font-bold">
-                Rewards must be sustainable.
-              </div>
-              <div className="mt-2 text-white/70 text-sm leading-relaxed">
-                Hash42 is built to scale to high-volume markets without being drained by farms or bots.
-              </div>
+              <div className="text-sm text-white/60">Hash42 Protocol</div>
+              <h2 className="mt-1 text-3xl md:text-4xl font-extrabold tracking-tight">
+                The first Gamified Revenue Protocol
+              </h2>
+              <p className="mt-3 text-white/70 max-w-2xl leading-relaxed">
+                A protocol should not rely on inflationary incentives. Hash42 is designed to distribute real protocol revenue,
+                with mechanisms built to resist abuse and scale to high-volume usage.
+              </p>
             </div>
-            <div>
-              <div className="text-sm text-white/60">Design</div>
-              <div className="mt-1 text-xl font-bold">
-                Idle by default. Daily by choice.
-              </div>
-              <div className="mt-2 text-white/70 text-sm leading-relaxed">
-                Start a 24h cycle and let it run. Return for claim and progress. No 24/7 attention required.
-              </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              
+              <a
+                href={APP_URL}
+                className="px-5 py-3 rounded-2xl bg-[#ff6a00] hover:bg-[#ff8a2e] text-black font-semibold shadow-[0_0_40px_rgba(255,106,0,0.18)] text-center"
+              >
+                Open App
+              </a>
             </div>
-            <div>
-              <div className="text-sm text-white/60">Future</div>
-              <div className="mt-1 text-xl font-bold">
-                Collectible GPUs & marketplace.
+          </div>
+
+          <div className="mt-8 grid md:grid-cols-3 gap-4">
+            {[
+              {
+                k: "Revenue only",
+                t: "No emissions. No inflation.",
+                d: "Distribution is tied to protocol revenue, not token printing. Sustainability is a design constraint, not a promise.",
+                badge: "Core rule",
+              },
+              {
+                k: "Gamified UX",
+                t: "Earn through Power.",
+                d: "A gamified surface that drives retention while keeping the underlying economy measurable and controllable.",
+                badge: "Experience",
+              },
+              {
+                k: "Scale & safety",
+                t: "Built to resist abuse.",
+                d: "Anti-sybil and pacing mechanics tuned with real usage data. Protect the system before scaling distribution.",
+                badge: "Defense",
+              },
+            ].map((c) => (
+              <div key={c.k} className="rounded-2xl border border-white/10 bg-black/30 p-6">
+                <div className="text-xs text-white/60">{c.badge}</div>
+                <div className="mt-2 text-xl font-bold">{c.t}</div>
+                <div className="mt-2 text-sm text-white/70 leading-relaxed">{c.d}</div>
+                <div className="mt-4 text-xs text-white/50">
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#2e6cff]" />
+                    {c.k}
+                  </span>
+                </div>
               </div>
-              <div className="mt-2 text-white/70 text-sm leading-relaxed">
-                GPUs evolve into tradable NFTs, enabling player-to-player trading with marketplace fees.
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section id="how" className="mx-auto max-w-6xl px-4 py-12">
-        <div className="flex items-end justify-between gap-6">
+      {/* Labs */}
+      <section id="labs" className="mx-auto max-w-6xl px-4 py-12">
+        <div className="grid md:grid-cols-2 gap-10 items-center">
           <div>
-            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-              How it works
+            <div className="text-sm text-white/60">Hash42 Labs</div>
+            <h2 className="mt-1 text-3xl md:text-4xl font-extrabold tracking-tight">
+              Web3 Infrastructure Studio
             </h2>
-            <p className="mt-2 text-white/70 max-w-2xl">
-              Simple loop. Clear incentives. Strong protections against abuse.
+            <p className="mt-3 text-white/70 leading-relaxed">
+              We build gamified revenue protocols designed for sustainability, transparency, and scale.
+              From economic design to smart contracts, frontends, and production infrastructure.
             </p>
-          </div>
-        </div>
 
-        <div className="mt-8 grid md:grid-cols-4 gap-4">
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-            <div className="text-xs text-white/60">Step 01</div>
-            <div className="mt-1 font-bold">Connect wallet</div>
-            <p className="mt-2 text-sm text-white/70 leading-relaxed">
-              Login by signing a message. No on-chain transaction.
-            </p>
+            <div className="mt-6 space-y-3">
+              {[
+                ["Protocol design", "Tokenless-first thinking, revenue flows, and measurable incentives."],
+                ["Smart contracts", "Security-driven patterns, modular upgrades, verifiable accounting."],
+                ["Product & UX", "High-end interfaces built for retention without sacrificing clarity."],
+                ["Infrastructure", "Indexing, automation, analytics, and monitoring for production scale."],
+              ].map(([title, desc]) => (
+                <div key={title} className="flex gap-3">
+                  <div className="mt-1 h-6 w-6 rounded-lg bg-[#2e6cff]/20 border border-white/10" />
+                  <div>
+                    <div className="font-semibold">{title}</div>
+                    <div className="text-sm text-white/70">{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <a
+                href={LABS_URL}
+                className="px-5 py-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white font-semibold text-center"
+              >
+                Explore Labs
+              </a>
+              <a
+                href="#contacts"
+                className="px-5 py-3 rounded-2xl bg-[#ff6a00] hover:bg-[#ff8a2e] text-black font-semibold shadow-[0_0_40px_rgba(255,106,0,0.18)] text-center"
+              >
+                Contact for partnerships
+              </a>
+            </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-            <div className="text-xs text-white/60">Step 02</div>
-            <div className="mt-1 font-bold">Start mining (24h)</div>
-            <p className="mt-2 text-sm text-white/70 leading-relaxed">
-              One button. One daily cycle. Progress continues while you are offline.
-            </p>
-          </div>
+          <div className="relative">
+            <div className="relative rounded-[32px] overflow-hidden">
+              <div className="pointer-events-none absolute -inset-6 rounded-[32px] bg-[radial-gradient(circle_at_top,rgba(46,108,255,0.25),transparent_55%),radial-gradient(circle_at_bottom,rgba(255,106,0,0.18),transparent_50%)] blur-2xl" />
+              <div className="relative rounded-[32px] border border-white/10 bg-black/40 overflow-hidden shadow-[0_0_40px_rgba(46,108,255,0.25)]">
+                <div className="p-4 md:p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src="/assets/logo-hash42-labs.webp"
+                        alt="Hash42 Labs"
+                        className="h-8 w-auto opacity-90"
+                      />
+                      <div>
+                        <div className="text-sm font-semibold">Infrastructure Studio</div>
+                        <div className="text-xs text-white/55">Build • Ship • Scale</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-white/50">Hash42 Labs</div>
+                  </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-            <div className="text-xs text-white/60">Step 03</div>
-            <div className="mt-1 font-bold">Balance grows per second</div>
-            <p className="mt-2 text-sm text-white/70 leading-relaxed">
-              USD-based balance with high precision decimals for visible momentum.
-            </p>
-          </div>
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    {[
+                      ["Sustainability", "Revenue-first economics"],
+                      ["Transparency", "Auditable flows"],
+                      ["Scale", "Designed for volume"],
+                      ["Security", "Safety baseline"],
+                    ].map(([t, d]) => (
+                      <div key={t} className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                        <div className="text-xs text-white/60">{t}</div>
+                        <div className="mt-1 text-sm font-semibold">{d}</div>
+                      </div>
+                    ))}
+                  </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-            <div className="text-xs text-white/60">Step 04</div>
-            <div className="mt-1 font-bold">Claim at cap</div>
-            <p className="mt-2 text-sm text-white/70 leading-relaxed">
-              Once you hit your cap, you claim and start the next cycle.
-            </p>
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-sm font-semibold">Built by @Hash42Labs</div>
+                    <div className="mt-1 text-sm text-white/70 leading-relaxed">
+                      We ship production-grade protocol products with a serious fintech infrastructure aesthetic.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 text-xs text-white/45">
+              Studio output: protocol primitives, revenue accounting, anti-abuse mechanics, and premium UX.
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Economy */}
-      <section id="economy" className="mx-auto max-w-6xl px-4 pb-12">
+      {/* Technology */}
+      <section id="tech" className="mx-auto max-w-6xl px-4 pb-12">
         <div className="rounded-[28px] border border-white/10 bg-gradient-to-b from-white/5 to-transparent p-6 md:p-8">
           <div className="grid md:grid-cols-2 gap-10">
             <div>
-              <h3 className="text-2xl font-extrabold tracking-tight">
-                Economy & sustainability
-              </h3>
+              <h3 className="text-2xl font-extrabold tracking-tight">Technology principles</h3>
               <p className="mt-2 text-white/70 leading-relaxed">
-                Hash42 avoids inflationary “free money” mechanics. The system stays stable by combining caps,
-                a global difficulty variable, and paid acceleration paths.
+                The protocol is engineered as infrastructure: measurable economics, auditable accounting, and
+                product mechanics that can scale without breaking distribution.
               </p>
 
               <div className="mt-6 space-y-3">
-                <div className="flex gap-3">
-                  <div className="mt-1 h-6 w-6 rounded-lg bg-[#2e6cff]/20 border border-white/10" />
-                  <div>
-                    <div className="font-semibold">Global difficulty</div>
-                    <div className="text-sm text-white/70">
-                      GPUs remain permanent while the difficulty can increase over time, preserving long-term balance.
+                {[
+                  {
+                    title: "Revenue accounting first",
+                    desc: "Revenue sources and distribution logic are explicit and measurable, not implied.",
+                    color: "bg-[#2e6cff]/20",
+                  },
+                  {
+                    title: "Pacing + anti-abuse",
+                    desc: "Mechanics are designed to resist farms, bots, and Sybil patterns before scaling rewards.",
+                    color: "bg-[#ff6a00]/20",
+                  },
+                  {
+                    title: "Transparency by default",
+                    desc: "Clear states, clear flows, and verifiable data paths where possible.",
+                    color: "bg-white/10",
+                  },
+                ].map((x) => (
+                  <div key={x.title} className="flex gap-3">
+                    <div className={`mt-1 h-6 w-6 rounded-lg ${x.color} border border-white/10`} />
+                    <div>
+                      <div className="font-semibold">{x.title}</div>
+                      <div className="text-sm text-white/70">{x.desc}</div>
                     </div>
                   </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="mt-1 h-6 w-6 rounded-lg bg-[#ff6a00]/20 border border-white/10" />
-                  <div>
-                    <div className="font-semibold">Caps by slots</div>
-                    <div className="text-sm text-white/70">
-                      1 free slot. Up to 5 slots. Higher slots unlock higher payout caps.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="mt-1 h-6 w-6 rounded-lg bg-white/10 border border-white/10" />
-                  <div>
-                    <div className="font-semibold">Paid progression</div>
-                    <div className="text-sm text-white/70">
-                      GPU packs, slot upgrades, and later ads/boosts create sustainable revenue without draining the system.
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/35 p-5 md:p-6">
-              <div className="text-sm text-white/60">Caps (example)</div>
+              <div className="text-sm text-white/60">What users feel</div>
 
-              <div className="mt-4 grid grid-cols-5 gap-2 text-center text-xs">
+              <div className="mt-4 space-y-3">
                 {[
-                  ["1 slot", "$10"],
-                  ["2", "$25"],
-                  ["3", "$50"],
-                  ["4", "$100"],
-                  ["5", "$250"],
-                ].map(([label, val]) => (
-                  <div
-                    key={label}
-                    className="rounded-xl border border-white/10 bg-black/40 p-3"
-                  >
-                    <div className="text-white/60">{label}</div>
-                    <div className="font-bold mt-1">{val}</div>
+                  ["Simple loop", "Users understand what happens next and why."],
+                  ["Real momentum", "Activity feels alive without promising fixed returns."],
+                  ["Institutional tone", "Premium UI, serious infrastructure vibe."],
+                  ["Upgrade paths", "Progression exists, but the economy stays controlled."],
+                ].map(([t, d]) => (
+                  <div key={t} className="rounded-2xl border border-white/10 bg-black/40 p-4">
+                    <div className="font-semibold">{t}</div>
+                    <div className="mt-1 text-sm text-white/70">{d}</div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="text-sm font-semibold">GPU packs (random)</div>
-                <p className="mt-1 text-sm text-white/70 leading-relaxed">
-                  Packs roll GPUs with controlled rarity. Low-priced packs cannot drop top-tier GPUs.
-                  Higher-priced packs minimize low-tier outcomes. Legendary remains rare.
-                </p>
-              </div>
-
               <div className="mt-4 text-xs text-white/45">
-                Final probabilities, pricing, and pacing are tuned with real data during the closed beta.
+                This is a presentation layer: terms and implementation details are refined as the protocol evolves.
               </div>
             </div>
           </div>
@@ -456,50 +522,30 @@ export default function HomePage() {
 
       {/* Roadmap */}
       <section id="roadmap" className="mx-auto max-w-6xl px-4 py-12">
-        <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-          Roadmap
-        </h2>
+        <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">Roadmap</h2>
         <p className="mt-2 text-white/70 max-w-2xl">
-          Ship fast. Validate with real users. Scale only after the economy is proven.
+          Ship fast. Validate with users. Scale only after the core economics is proven.
         </p>
 
         <div className="mt-8 grid md:grid-cols-3 gap-4">
           {[
             {
-              phase: "Phase 0.5",
-              title: "Closed beta",
-              items: [
-                "24h mining cycles",
-                "HashUSD balance (high precision)",
-                "Caps & claim flow",
-                "Basic leaderboard",
-              ],
+              phase: "Phase 0",
+              title: "Core loop + distribution",
+              items: ["Protocol entry point", "Gamified UX foundations", "Data instrumentation", "Anti-abuse baseline"],
             },
             {
               phase: "Phase 1",
-              title: "GPU packs & slots",
-              items: [
-                "Randomized GPU drops",
-                "Slot upgrades (1 → 5)",
-                "Global difficulty tuning",
-                "Anti-spam improvements",
-              ],
+              title: "Revenue modules",
+              items: ["Revenue routing", "Continuous distribution", "Pacing refinements", "Transparency upgrades"],
             },
             {
               phase: "Phase 2",
-              title: "NFT marketplace",
-              items: [
-                "GPUs become NFTs",
-                "Player-to-player marketplace",
-                "Fees & royalties",
-                "Optional ad boosts",
-              ],
+              title: "Scale + integrations",
+              items: ["Partnership rails", "Analytics and monitoring", "New surfaces", "Hardening + audits"],
             },
           ].map((p) => (
-            <div
-              key={p.phase}
-              className="rounded-2xl border border-white/10 bg-black/30 p-6"
-            >
+            <div key={p.phase} className="rounded-2xl border border-white/10 bg-black/30 p-6">
               <div className="text-xs text-white/60">{p.phase}</div>
               <div className="mt-1 text-xl font-bold">{p.title}</div>
               <ul className="mt-3 space-y-2 text-sm text-white/70">
@@ -515,61 +561,60 @@ export default function HomePage() {
       {/* CTA */}
       <section id="cta" className="mx-auto max-w-6xl px-4 pb-14">
         <div className="rounded-[28px] border border-white/10 bg-gradient-to-r from-[#2e6cff]/20 via-white/5 to-[#ff6a00]/15 p-10 md:p-14 text-center">
-          <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-            Start mining
-          </h2>
+          <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight">Enter Hash42</h2>
           <p className="mt-3 text-white/70 leading-relaxed max-w-2xl mx-auto">
-            Open the app and begin your daily 24h cycle. Rewards are paced by design.
+            Hash42 Protocol is the product. Hash42 Labs is the studio behind it. One brand, two surfaces, one core:
+            revenue-first design.
           </p>
 
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
             <a
-              href="https://hash42.xyz/mining-app"
+              href={APP_URL}
               className="px-7 py-4 rounded-2xl bg-[#ff6a00] hover:bg-[#ff8a2e] text-black font-semibold text-lg shadow-[0_0_40px_rgba(255,106,0,0.18)]"
             >
-              Open app
+              Open App
             </a>
+            <a
+              href={LABS_URL}
+              className="px-7 py-4 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white font-semibold text-lg"
+            >
+              Explore Labs
+            </a>
+            
           </div>
 
           <div className="mt-4 text-xs text-white/45">
-            Beta preview. HashUSD only. No real USDC is distributed.
+            No promises of fixed returns. This site presents the vision and direction of the project.
           </div>
         </div>
       </section>
 
       {/* FAQ */}
       <section id="faq" className="mx-auto max-w-6xl px-4 pb-16">
-        <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-          FAQ
-        </h2>
+        <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">FAQ</h2>
 
         <div className="mt-8 grid md:grid-cols-2 gap-4">
           {[
             {
-              q: "Is Hash42 a faucet?",
-              a: "No. It is a paced mining game. The economy is designed around caps, difficulty, and paid progression.",
+              q: "Where is the app?",
+              a: "The app runs at protocol.hash42.xyz. The /protocol path on hash42.xyz redirects to the same app.",
             },
             {
-              q: "Do I need to keep the app open?",
-              a: "No. You start a 24h cycle and come back for claim. The loop is built for daily engagement.",
+              q: "What is the relationship between Labs and Protocol?",
+              a: "Hash42 Labs is the Web3 infrastructure studio. Hash42 Protocol is the flagship product built and maintained by the studio.",
             },
             {
-              q: "What stops bots and farms?",
-              a: "The system is not “free money”. Free progression is extremely slow, caps gate payouts, and difficulty can rise globally.",
+              q: "Does Hash42 rely on token emissions?",
+              a: "No. The core positioning is revenue-first: no emissions and no inflation as a mechanism for distribution.",
             },
             {
-              q: "When will NFTs and marketplace launch?",
-              a: "After the closed beta proves the economy. Then GPUs become tradable NFTs with marketplace fees.",
+              q: "Is this a promise of yield or fixed returns?",
+              a: "No. Hash42 is product and infrastructure. Any distribution mechanics are tied to protocol revenue and designed with sustainability constraints.",
             },
           ].map((f) => (
-            <div
-              key={f.q}
-              className="rounded-2xl border border-white/10 bg-black/30 p-6"
-            >
+            <div key={f.q} className="rounded-2xl border border-white/10 bg-black/30 p-6">
               <div className="font-semibold">{f.q}</div>
-              <div className="mt-2 text-sm text-white/70 leading-relaxed">
-                {f.a}
-              </div>
+              <div className="mt-2 text-sm text-white/70 leading-relaxed">{f.a}</div>
             </div>
           ))}
         </div>
@@ -580,17 +625,12 @@ export default function HomePage() {
         <div className="rounded-[28px] border border-white/10 bg-white/5 p-6 md:p-10">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
             <div>
-              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-                Stay in touch
-              </h2>
-              <p className="mt-2 text-white/70 max-w-2xl">
-                Contact us for partnerships, feedback, and early access updates.
-              </p>
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">Stay in touch</h2>
+              <p className="mt-2 text-white/70 max-w-2xl">Contact us for partnerships, feedback, and collaboration.</p>
             </div>
           </div>
 
           <div className="mt-8 grid md:grid-cols-3 gap-4">
-            {/* Email */}
             <a
               href="mailto:hash42labs@gmail.com"
               className="rounded-2xl border border-white/10 bg-black/30 p-5 hover:bg-white/5 transition"
@@ -604,7 +644,6 @@ export default function HomePage() {
               </div>
             </a>
 
-            {/* X */}
             <a
               href="https://x.com/hash42labs"
               target="_blank"
@@ -620,7 +659,6 @@ export default function HomePage() {
               </div>
             </a>
 
-            {/* Telegram */}
             <a
               href="https://t.me/hash42labs"
               target="_blank"
@@ -649,23 +687,16 @@ export default function HomePage() {
                 alt="Hash42 Labs"
                 className="h-9 w-auto opacity-90"
               />
-              <div className="text-sm text-white/60">
-                © {year} Hash42. All rights reserved.
-              </div>
+              <div className="text-sm text-white/60">© {year} Hash42. All rights reserved.</div>
             </div>
 
-            <div className="flex items-center gap-4 text-sm text-white/60">
-              <a href="#how" className="hover:text-white">
-                How it works
+            <div className="flex flex-wrap items-center gap-4 text-sm text-white/60">
+              <a href={LABS_URL} className="hover:text-white">
+                Labs
               </a>
-              <a href="#economy" className="hover:text-white">
-                Economy
-              </a>
-              <a href="#roadmap" className="hover:text-white">
-                Roadmap
-              </a>
-              <a href="#faq" className="hover:text-white">
-                FAQ
+            
+              <a href={APP_URL} className="hover:text-white">
+                Open App
               </a>
               <a href="#contacts" className="hover:text-white">
                 Contacts
