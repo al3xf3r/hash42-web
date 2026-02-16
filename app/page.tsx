@@ -785,7 +785,7 @@ export default function HomePage() {
                 alt="Hash42 Labs"
                 className="h-9 w-auto opacity-90"
               />
-              <div className="text-sm text-white/60">© {year} Hash42. All rights reserved.</div>
+              <div className="text-sm text-white/60">© {year} Hash42. All rights reserved. Powered by <a href="https://alexfer33.pw" className="text-orange-500">al33xf</a></div>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 text-sm text-white/60">
