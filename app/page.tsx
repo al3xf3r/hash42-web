@@ -175,7 +175,7 @@ export default function HomePage() {
                     ["Open App", APP_URL],
                     
                     
-                    ["Protocol (section)", "#protocol"],
+                    ["Protocol", "#protocol"],
                     ["Labs", "#labs"],
                     ["Technology", "#tech"],
                     ["Roadmap", "#roadmap"],
