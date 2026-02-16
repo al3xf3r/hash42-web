@@ -1610,7 +1610,7 @@ if (j && j.starterRtxGifted === false) {
     const totalNetworkPower = Number(protocolStatus?.totalPower || "0"); // MH/s
     // Mini visual scaling (420 max per GPU * 5 slots realistic per user, ma network può essere grande)
 // Facciamo una scala dinamica soft cap a 100k per la barra visuale
-const networkPowerScaleMax = 10000; 
+const networkPowerScaleMax = 30000; 
 const networkPowerPercent = Math.min(
   100,
   totalNetworkPower > 0
@@ -2149,7 +2149,7 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
   function LeaderboardTab() {
     
     const totalNetworkPower = Number(protocolStatus?.totalPower || "0");
-    const networkPowerScaleMax = 10000;
+    const networkPowerScaleMax = 30000;
 const networkPowerPercent = Math.min(
   100,
   totalNetworkPower > 0 ? (totalNetworkPower / networkPowerScaleMax) * 100 : 0

@@ -278,10 +278,10 @@ function NextDistributionCountdown({ serverNowISO }: { serverNowISO?: string | n
   }, []);
 
   return (
-    <div className="text-right">
+    <div className="text-right space-y-1">
       <div className="text-zinc-400 text-xs">Next distribution</div>
       <div className="text-2xl font-extrabold text-cyan-300">{formatHMS(seconds)}</div>
-      <div className="text-zinc-500 text-xs">Daily at 17:00 (Rome)</div>
+      <div className="text-zinc-500 text-xs">Daily at 17:00 UTC+1</div>
     </div>
   );
 }
@@ -1463,7 +1463,8 @@ if (j && j.starterRtxGifted === false) {
     };
 
     return (
-      <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 backdrop-blur">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 backdrop-blur z-[9999]">
+        <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 backdrop-blur z-[9999] isolate"></div>
         <div className="max-w-md mx-auto flex">
           {item("protocol", "Protocol")}
           {item("marketplace", "Marketplace")}
@@ -1609,7 +1610,7 @@ if (j && j.starterRtxGifted === false) {
     const totalNetworkPower = Number(protocolStatus?.totalPower || "0"); // MH/s
     // Mini visual scaling (420 max per GPU * 5 slots realistic per user, ma network può essere grande)
 // Facciamo una scala dinamica soft cap a 100k per la barra visuale
-const networkPowerScaleMax = 100000; 
+const networkPowerScaleMax = 10000; 
 const networkPowerPercent = Math.min(
   100,
   totalNetworkPower > 0
@@ -1617,7 +1618,8 @@ const networkPowerPercent = Math.min(
     : 0
 );
 
-    const displayPower = rigPower > 0 ? rigPower : Number(me?.powerScore || rewardsV2?.power || 0);
+    const rigDisplayPower = rigPower; // 0 se rig vuoto
+const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || rewardsV2?.power || 0);
 
     const rigWrapRef = useRef<HTMLDivElement | null>(null);
     const slotRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -1627,7 +1629,7 @@ const networkPowerPercent = Math.min(
     // Estimated next payout (requires totalPower)
     const totalPower = Number(protocolStatus?.totalPower || "0");
     const estNextNano =
-      totalPower > 0 && displayPower > 0 ? Math.floor((availNano * displayPower) / totalPower) : null;
+      totalPower > 0 && effectivePower > 0 ? Math.floor((availNano * effectivePower) / totalPower) : null;
 
     return (
       <div className="space-y-4">
@@ -1644,14 +1646,9 @@ const networkPowerPercent = Math.min(
             </div>
 
             <div className="flex flex-col items-end gap-2">
+              <div className="mb-3">
               <NextDistributionCountdown serverNowISO={protocolStatus?.serverNow} />
-              <button
-                onClick={() => fetchProtocolStatus().catch(() => {})}
-                disabled={busy || protocolLoading}
-                className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
-              >
-                {protocolLoading ? "..." : "Refresh"}
-              </button>
+              </div>
             </div>
           </div>
 <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
@@ -1670,13 +1667,36 @@ const networkPowerPercent = Math.min(
     </div>
   </div>
 
-  {/* Energy Flow Bar */}
-  <div className="mt-2 h-2 rounded-full bg-zinc-900 overflow-hidden relative">
+  {/* Energy Flow Bar (premium) */}
+<div className="mt-2">
+  <div className="h-2.5 rounded-full bg-zinc-900/80 overflow-hidden relative border border-zinc-800">
+    {/* glow always full */}
+    <div className="absolute inset-0">
+      <div className="w-full h-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 opacity-35 blur-[2px] animate-pulse" />
+    </div>
+
+    {/* subtle moving shine */}
+    <div className="absolute inset-0 opacity-20">
+      <div className="w-1/3 h-full bg-white/30 blur-md animate-[shine_1.8s_linear_infinite]" />
+    </div>
+
+    {/* fill */}
     <div
-      className="h-full bg-gradient-to-r from-red-400 via-orange-400 to-yellow-300 animate-pulse"
-      style={{ width: `${networkPowerPercent}%` }}
+      className="relative h-full rounded-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400"
+      style={{
+        width: `${Math.max(2, networkPowerPercent)}%`, // minimo visibile
+        boxShadow: "0 0 18px rgba(249,115,22,0.45)",
+      }}
     />
   </div>
+
+  <style jsx>{`
+    @keyframes shine {
+      0% { transform: translateX(-40%); }
+      100% { transform: translateX(340%); }
+    }
+  `}</style>
+</div>
 
   <div className="text-[11px] text-zinc-500 mt-2">
     Real-time aggregated hash power contributing to revenue distribution.
@@ -1738,7 +1758,7 @@ const networkPowerPercent = Math.min(
 
     <div className="text-right">
       <div className="text-zinc-400 text-xs">Rig Power</div>
-      <div className="text-2xl font-extrabold">{displayPower}</div>
+      <div className="text-2xl font-extrabold">{rigDisplayPower}</div>
       <div className="text-zinc-500 text-xs">MH/s (beta)</div>
     </div>
   </div>
@@ -1754,7 +1774,7 @@ const networkPowerPercent = Math.min(
   </div>
 
   {/* SLOT GRID + OVERLAY CAVI (partono dagli slot) */}
-<div className="mt-4 relative pb-[100px] sm:pb-[100px]" ref={rigWrapRef}>
+<div className="mt-4 relative pb-[100px] sm:pb-[100px] isolate" ref={rigWrapRef}>
   {/* overlay assoluto che parte dagli slot e va al mainframe */}
   <RigWiringMainframe
     rig={rig}
@@ -1796,7 +1816,7 @@ const networkPowerPercent = Math.min(
                 />
               </div>
               <div className="mt-1 text-[10px] text-zinc-300 font-semibold truncate">
-                {g.mhps} MH/s
+                {g.mhps}
               </div>
             </div>
           ) : (
@@ -1857,7 +1877,7 @@ const networkPowerPercent = Math.min(
             <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm space-y-2">
               <div className="flex justify-between">
                 <span className="text-zinc-400">Power</span>
-                <span className="font-extrabold">{displayPower}</span>
+                <span className="font-extrabold">{effectivePower}</span>
               </div>
 
               <div className="flex justify-between">
@@ -2127,32 +2147,84 @@ const networkPowerPercent = Math.min(
   }
 
   function LeaderboardTab() {
+    
     const totalNetworkPower = Number(protocolStatus?.totalPower || "0");
+    const networkPowerScaleMax = 10000;
+const networkPowerPercent = Math.min(
+  100,
+  totalNetworkPower > 0 ? (totalNetworkPower / networkPowerScaleMax) * 100 : 0
+);
     return (
       <div className="space-y-4">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-bold text-lg">Leaderboard</div>
-              <div className="text-zinc-400 text-sm">
-  Public leaderboard (Power Score).
-  <span className="block text-lg mt-1">
-    Total network power: <span className="text-cyan-500 font-bold">{totalNetworkPower} MH/s</span> 
-  </span>
+  <div className="flex items-start justify-between gap-3">
+    {/* LEFT */}
+    <div className="flex-1 min-w-0">
+      <div className="font-bold text-lg">Leaderboard</div>
+      <div className="text-zinc-400 text-sm">
+        Public leaderboard (Power Score).
+      </div>
+
+      <div className="mt-2 text-lg">
+        <span className="text-zinc-400">Total network power: </span>
+        <span className="text-cyan-500 font-bold">{totalNetworkPower} MH/s</span>
+      </div>
+
+      {/* BAR SECTION (outside the text-sm block) */}
+      <div className="mt-3 w-full">
+  <div className="text-[11px] text-zinc-500 mb-2">Live network power signal</div>
+
+  {/* OUTER: no overflow-hidden (così il glow può vivere) */}
+  <div className="relative w-full h-2.5 rounded-full border border-zinc-800 bg-zinc-900/80">
+
+    {/* INNER MASK: qui facciamo il clipping, non fuori */}
+    <div className="absolute inset-0 rounded-full overflow-hidden">
+
+      {/* 1) TRACK: gradiente pieno sempre visibile */}
+      <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 opacity-25" />
+
+      {/* 2) SOFT GLOW: pieno, leggero, sempre */}
+      <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 opacity-25 animate-pulse" />
+
+      {/* 3) SHINE che scorre */}
+      <div className="absolute inset-0 opacity-18">
+        <div className="w-1/3 h-full bg-white/35 blur-md animate-[shine_1.8s_linear_infinite]" />
+      </div>
+
+      {/* 4) FILL percentuale sopra */}
+      <div
+        className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400"
+        style={{ width: `${Math.max(2, networkPowerPercent)}%` }}
+      />
+    </div>
+
+    {/* GLOW esterno (fuori dal mask) */}
+    <div className="pointer-events-none absolute inset-0 rounded-full"
+         style={{ boxShadow: "0 0 16px rgba(249,115,22,0.28)" }} />
+  </div>
+
+  <style jsx>{`
+    @keyframes shine {
+      0% { transform: translateX(-40%); }
+      100% { transform: translateX(340%); }
+    }
+  `}</style>
+</div>
+    </div>
+
+    {/* RIGHT */}
+    <button
+      onClick={() => fetchLeaderboardPublic().catch(() => {})}
+      disabled={busy || lbLoading}
+      className="shrink-0 text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+    >
+      {lbLoading ? "..." : "Refresh"}
+    </button>
+  </div>
 </div>
 
 
-
-            </div>
-            <button
-              onClick={() => fetchLeaderboardPublic().catch(() => {})}
-              disabled={busy || lbLoading}
-              className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
-            >
-              {lbLoading ? "..." : "Refresh"}
-            </button>
-          </div>
-        </div>
+          
 
 
 
@@ -2172,7 +2244,7 @@ const networkPowerPercent = Math.min(
             <div className="text-zinc-500 text-sm">No data yet.</div>
           ) : (
             <div className="space-y-2">
-              {lb.items.map((it) => (
+              {lb.items.slice(0, 10).map((it) => (
                 <div key={it.userId} className="rounded-xl border border-zinc-800 bg-black/30 p-3">
                   <div className="flex items-center justify-between">
                     <div className="font-extrabold text-orange-400">#{it.rank}</div>
@@ -2404,7 +2476,7 @@ const networkPowerPercent = Math.min(
     disabled={busy || protocolLoading}
     title="Refresh public protocol status"
   >
-    {protocolLoading ? "..." : "Status"}
+    {protocolLoading ? "..." : "Refresh"}
   </button>
 </div>
         </div>
@@ -2467,7 +2539,7 @@ const networkPowerPercent = Math.min(
             </span>
           </div>
 
-          <div className="mt-2 h-2 rounded-full bg-zinc-900 overflow-hidden">
+          <div className="mt-2 h-2 w-full rounded-full bg-zinc-900 overflow-hidden">
             <div
               className="h-full bg-orange-500 transition-all"
               style={{ width: `${starterStep === 0 ? 25 : starterStep === 1 ? 65 : 100}%` }}
