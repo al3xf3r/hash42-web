@@ -173,10 +173,10 @@ export default function HomePage() {
                 <div className="p-2">
                   {[
                     ["Open App", APP_URL],
-                    ["Labs (page)", LABS_URL],
+                    
                     
                     ["Protocol (section)", "#protocol"],
-                    ["Labs (section)", "#labs"],
+                    ["Labs", "#labs"],
                     ["Technology", "#tech"],
                     ["Roadmap", "#roadmap"],
                     ["FAQ", "#faq"],
