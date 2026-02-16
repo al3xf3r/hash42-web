@@ -7,29 +7,85 @@ const APP_URL = "https://protocol.hash42.xyz";
 const LABS_URL = "https://hash42.xyz/labs";
 const DISCOVER_URL = "https://hash42.xyz/discover";
 
+// API base (es: https://api.hash42.xyz). Deve essere impostato su Vercel env.
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
+
+// ⚠️ Se il tuo backend usa un path diverso, cambia SOLO questo:
+const STATUS_PATH = "/protocol/status";
+
+type ProtocolStatus = {
+  poolNano?: string | number;
+  reserveNano?: string | number;
+  allocatedUnclaimedNano?: string | number;
+  availableNano?: string | number;
+  totalPower?: string | number; // MH/s
+  serverNow?: string; // ISO
+};
+
 export default function HomePage() {
   const year = useMemo(() => new Date().getFullYear(), []);
-
-  // --- Animated preview metric (non-financial / preview only) ---
-  const [rev, setRev] = useState<number>(42.0137);
-
-  useEffect(() => {
-    const inc = 0.018; // preview pulse
-    const t = setInterval(() => {
-      setRev((v) => {
-        const next = v + inc;
-        if (next >= 84.0) return 42.0137;
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const revText = useMemo(() => `$${rev.toFixed(4)}`, [rev]);
 
   // --- Mobile menu ---
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = () => setMenuOpen(false);
+
+  // --- Live protocol status (Active Pool preview) ---
+  const [protocolStatus, setProtocolStatus] = useState<ProtocolStatus | null>(null);
+  const [protocolLoading, setProtocolLoading] = useState(true);
+  const [protocolErr, setProtocolErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      if (!API_BASE) {
+        setProtocolErr("NEXT_PUBLIC_API_BASE is missing");
+        setProtocolLoading(false);
+        return;
+      }
+
+      try {
+        setProtocolErr(null);
+        const r = await fetch(`${API_BASE}${STATUS_PATH}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        });
+
+        if (!r.ok) throw new Error(`API ${r.status}`);
+
+        const data = (await r.json()) as ProtocolStatus;
+        if (!alive) return;
+
+        setProtocolStatus(data);
+        setProtocolLoading(false);
+      } catch (e: any) {
+        if (!alive) return;
+        setProtocolErr(e?.message || "Failed to load");
+        setProtocolLoading(false);
+      }
+    }
+
+    load();
+    const t = setInterval(load, 10000); // refresh every 10s
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  const poolNano = Number(protocolStatus?.poolNano || "0");
+  const reserveNano = Number(protocolStatus?.reserveNano || "0");
+  const allocNano = Number(protocolStatus?.allocatedUnclaimedNano || "0");
+  const availNano = Number(protocolStatus?.availableNano || "0");
+  const totalNetworkPower = Number(protocolStatus?.totalPower || "0");
+
+  // Soft cap visual scale for bar
+  const networkPowerScaleMax = 30000;
+  const networkPowerPercent = Math.min(
+    100,
+    totalNetworkPower > 0 ? (totalNetworkPower / networkPowerScaleMax) * 100 : 0
+  );
 
   return (
     <main className="bg-black text-white antialiased min-h-screen overflow-x-hidden">
@@ -70,28 +126,16 @@ export default function HomePage() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-6 text-sm text-white/75">
-            <a href="#protocol" className="hover:text-white">
-              Protocol
-            </a>
-            <a href="#labs" className="hover:text-white">
-              Labs
-            </a>
-            <a href="#tech" className="hover:text-white">
-              Technology
-            </a>
-            <a href="#roadmap" className="hover:text-white">
-              Roadmap
-            </a>
-            <a href="#faq" className="hover:text-white">
-              FAQ
-            </a>
-            <a href="#contacts" className="hover:text-white">
-              Contacts
-            </a>
+            <a href="#protocol" className="hover:text-white">Protocol</a>
+            <a href="#labs" className="hover:text-white">Labs</a>
+            <a href="#tech" className="hover:text-white">Technology</a>
+            <a href="#roadmap" className="hover:text-white">Roadmap</a>
+            <a href="#faq" className="hover:text-white">FAQ</a>
+            <a href="#contacts" className="hover:text-white">Contacts</a>
           </nav>
 
           <div className="flex items-center gap-2 relative">
-            {/* NEW: secondary CTA buttons (desktop) */}
+            {/* Secondary CTAs (desktop) */}
             <div className="hidden sm:flex items-center gap-2">
               <a
                 href={LABS_URL}
@@ -119,12 +163,7 @@ export default function HomePage() {
               onClick={() => setMenuOpen((v) => !v)}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="opacity-90">
-                <path
-                  d="M4 7h16M4 12h16M4 17h16"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
+                <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </button>
 
@@ -134,9 +173,9 @@ export default function HomePage() {
                 <div className="p-2">
                   {[
                     ["Open App", APP_URL],
-                    ["Labs (page)", "/labs"],
+                    ["Labs (page)", LABS_URL],
                     
-                    ["Protocol", "#protocol"],
+                    ["Protocol (section)", "#protocol"],
                     ["Labs (section)", "#labs"],
                     ["Technology", "#tech"],
                     ["Roadmap", "#roadmap"],
@@ -211,11 +250,11 @@ export default function HomePage() {
               </div>
 
               <div className="mt-6 text-xs text-white/45">
-                Hash42 Labs is a Web3 infrastructure studio building systems designed for sustainability, transparency, and scale.
+                Transparency-first: the homepage shows live pool data pulled from the same backend used by the app.
               </div>
             </div>
 
-            {/* Right column */}
+            {/* Right column: Active Pool preview */}
             <div className="relative">
               <div className="relative rounded-[32px] overflow-hidden">
                 <div className="pointer-events-none absolute -inset-6 rounded-[32px] bg-[radial-gradient(circle_at_top,rgba(46,108,255,0.25),transparent_55%),radial-gradient(circle_at_bottom,rgba(255,106,0,0.18),transparent_50%)] blur-2xl" />
@@ -230,43 +269,101 @@ export default function HomePage() {
                   </div>
 
                   <div className="p-4">
-                    <img
-                      src="/assets/hero-hash42-miningapp.webp"
-                      alt="Hash42 Protocol preview"
-                      className="w-full md:w-[92%] md:mx-auto rounded-2xl border border-white/10"
-                    />
-
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-xs text-white/60">Protocol revenue (preview)</div>
-                          <div className="text-2xl font-extrabold mt-1 tabular-nums">{revText}</div>
-                          <div className="text-xs text-white/50 mt-1">
-                            Animated preview metric • not financial data
+                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-white/55 text-xs">Hash42 Protocol</div>
+                          <div className="mt-1 text-2xl font-extrabold tracking-tight">
+                            {protocolLoading ? "..." : "Active Pool"}
+                          </div>
+                          <div className="text-white/40 text-xs mt-1">
+                            Updated:{" "}
+                            {protocolStatus?.serverNow ? fmtWhen(protocolStatus.serverNow) : "—"}
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-xs text-white/60">Status</div>
-                          <div className="mt-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs">
+
+                        <div className="flex flex-col items-end gap-2">
+                          <NextDistributionCountdown serverNowISO={protocolStatus?.serverNow} />
+                        </div>
+                      </div>
+
+                      {/* Network Power */}
+                      <div className="mt-4 rounded-xl border border-[#06b6d4]/20 bg-[#06b6d4]/5 p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-white/55 text-xs tracking-wide">
+                            TOTAL NETWORK POWER
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <div className="text-[10px] px-2 py-1 rounded-full bg-[#06b6d4]/20 text-[#ff6a00] font-bold">
+                              LIVE
+                            </div>
+                            <div className="font-extrabold text-[#06b6d4]">
+                              {protocolLoading ? "..." : totalNetworkPower}{" "}
+                              <span className="text-white/60 font-bold">MH/s</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Energy Flow Bar */}
+                        <div className="mt-2">
+                          <div className="h-2.5 rounded-full bg-white/5 overflow-hidden relative border border-white/10">
+                            <div className="absolute inset-0">
+                              <div className="w-full h-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 opacity-35 blur-[2px] animate-pulse" />
+                            </div>
+
+                            <div className="absolute inset-0 opacity-20">
+                              <div className="w-1/3 h-full bg-white/30 blur-md animate-[shine_1.8s_linear_infinite]" />
+                            </div>
+
+                            <div
+                              className="relative h-full rounded-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400"
+                              style={{
+                                width: `${Math.max(2, networkPowerPercent)}%`,
+                                boxShadow: "0 0 18px rgba(249,115,22,0.45)",
+                              }}
+                            />
+                          </div>
+
+                          <style jsx>{`
+                            @keyframes shine {
+                              0% { transform: translateX(-40%); }
+                              100% { transform: translateX(340%); }
+                            }
+                          `}</style>
+                        </div>
+
+                        <div className="text-[11px] text-white/45 mt-2">
+                          Real-time aggregated hash power contributing to revenue distribution.
+                        </div>
+                      </div>
+
+                      {/* Pool numbers */}
+                      <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3 text-sm space-y-2">
+                        <Row label="Pool" value={`${fmtCredits8FromNano(poolNano)} HUSD`} strong />
+                        <Row label="Reserve" value={`${fmtCredits8FromNano(reserveNano)} HUSD`} />
+                        <Row label="Allocated" value={`${fmtCredits8FromNano(allocNano)} HUSD`} />
+                        <Row
+                          label="Available"
+                          value={`${fmtCredits8FromNano(availNano)} HUSD`}
+                          strong
+                          accent
+                        />
+
+                        <div className="pt-2 mt-2 border-t border-white/10 flex justify-between">
+                          <span className="text-white/55">Status</span>
+                          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs">
                             <span className="h-2 w-2 rounded-full bg-[#2e6cff]" />
                             Online
+                          </span>
+                        </div>
+
+                        {protocolErr && (
+                          <div className="mt-2 text-[11px] text-red-300">
+                            Live data error: {protocolErr}
                           </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 h-2 rounded-full bg-white/5 overflow-hidden">
-                        <div className="h-full w-[58%] bg-gradient-to-r from-[#2e6cff] to-[#ff6a00]" />
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-xl border border-white/10 bg-black/40 p-3">
-                          <div className="text-xs text-white/60">Emissions</div>
-                          <div className="font-bold mt-1">None</div>
-                        </div>
-                        <div className="rounded-xl border border-white/10 bg-black/40 p-3">
-                          <div className="text-xs text-white/60">Inflation</div>
-                          <div className="font-bold mt-1">None</div>
-                        </div>
+                        )}
                       </div>
 
                       <a
@@ -277,7 +374,8 @@ export default function HomePage() {
                       </a>
 
                       <div className="mt-3 text-[11px] text-white/45">
-                        App runs on <span className="text-white/70 font-semibold">protocol.hash42.xyz</span>.{" "}
+                        App runs on{" "}
+                        <span className="text-white/70 font-semibold">protocol.hash42.xyz</span>.{" "}
                         <span className="text-white/50">
                           hash42.xyz/protocol redirects to the same app.
                         </span>
@@ -311,7 +409,7 @@ export default function HomePage() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              
+             
               <a
                 href={APP_URL}
                 className="px-5 py-3 rounded-2xl bg-[#ff6a00] hover:bg-[#ff8a2e] text-black font-semibold shadow-[0_0_40px_rgba(255,106,0,0.18)] text-center"
@@ -600,16 +698,16 @@ export default function HomePage() {
               a: "The app runs at protocol.hash42.xyz. The /protocol path on hash42.xyz redirects to the same app.",
             },
             {
-              q: "What is the relationship between Labs and Protocol?",
-              a: "Hash42 Labs is the Web3 infrastructure studio. Hash42 Protocol is the flagship product built and maintained by the studio.",
+              q: "Is the pool data real?",
+              a: "Yes. The homepage pulls live numbers from the same API used by the app, for transparency.",
             },
             {
               q: "Does Hash42 rely on token emissions?",
               a: "No. The core positioning is revenue-first: no emissions and no inflation as a mechanism for distribution.",
             },
             {
-              q: "Is this a promise of yield or fixed returns?",
-              a: "No. Hash42 is product and infrastructure. Any distribution mechanics are tied to protocol revenue and designed with sustainability constraints.",
+              q: "What is the relationship between Labs and Protocol?",
+              a: "Hash42 Labs is the Web3 infrastructure studio. Hash42 Protocol is the flagship product built and maintained by the studio.",
             },
           ].map((f) => (
             <div key={f.q} className="rounded-2xl border border-white/10 bg-black/30 p-6">
@@ -691,21 +789,123 @@ export default function HomePage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-4 text-sm text-white/60">
-              <a href={LABS_URL} className="hover:text-white">
-                Labs
-              </a>
-            
-              <a href={APP_URL} className="hover:text-white">
-                Open App
-              </a>
-              <a href="#contacts" className="hover:text-white">
-                Contacts
-              </a>
+              <a href={LABS_URL} className="hover:text-white">Labs</a>
+              
+              <a href={APP_URL} className="hover:text-white">Open App</a>
+              <a href="#contacts" className="hover:text-white">Contacts</a>
             </div>
           </div>
         </div>
       </footer>
     </main>
+  );
+}
+
+/* ---------- Small UI helpers ---------- */
+
+function Row({
+  label,
+  value,
+  strong,
+  accent,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-white/55">{label}</span>
+      <span
+        className={[
+          strong ? "font-extrabold" : "font-bold",
+          accent ? "text-[#ffb26b]" : "text-white",
+        ].join(" ")}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function fmtCredits8FromNano(nano: number) {
+  // nano = 1e-8
+  const v = nano / 1e8;
+  return v.toLocaleString(undefined, {
+    minimumFractionDigits: 8,
+    maximumFractionDigits: 8,
+  });
+}
+
+function fmtWhen(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm} ${hh}:${mi}`;
+}
+
+function NextDistributionCountdown({ serverNowISO }: { serverNowISO?: string }) {
+  const [text, setText] = useState<string>("—");
+
+  // Anchor: quando arriva serverNowISO, salviamo:
+  // - serverMs: il timestamp del server
+  // - clientMs: il timestamp locale nel momento in cui l’abbiamo salvato
+  const anchorRef = useMemo(
+    () => ({ serverMs: 0, clientMs: 0 }),
+    []
+  );
+
+  useEffect(() => {
+    // aggiorna anchor quando cambia serverNowISO
+    const serverDate = serverNowISO ? new Date(serverNowISO) : null;
+    const serverMs =
+      serverDate && !Number.isNaN(serverDate.getTime()) ? serverDate.getTime() : 0;
+
+    if (serverMs > 0) {
+      anchorRef.serverMs = serverMs;
+      anchorRef.clientMs = Date.now();
+    } else {
+      // fallback: usa tempo locale come riferimento
+      anchorRef.serverMs = Date.now();
+      anchorRef.clientMs = Date.now();
+    }
+  }, [serverNowISO, anchorRef]);
+
+  useEffect(() => {
+    const tick = () => {
+      const elapsed = Date.now() - anchorRef.clientMs;
+      const nowMs = anchorRef.serverMs + Math.max(0, elapsed);
+      const now = new Date(nowMs);
+
+      // Next distribution daily at 17:00 local time
+      const next = new Date(now);
+      next.setHours(17, 0, 0, 0);
+      if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 1);
+
+      const diff = Math.max(0, next.getTime() - now.getTime());
+      const s = Math.floor(diff / 1000);
+      const hh = String(Math.floor(s / 3600)).padStart(2, "0");
+      const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+      const ss = String(s % 60).padStart(2, "0");
+
+      setText(`${hh}:${mm}:${ss}`);
+    };
+
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [anchorRef]);
+
+  return (
+    <div className="text-right">
+      <div className="text-white/55 text-xs">Next distribution</div>
+      <div className="mt-1 text-[#06b6d4] font-extrabold tabular-nums">{text}</div>
+      <div className="text-white/40 text-[11px] mt-0.5">Daily at 17:00 UTC+1</div>
+    </div>
   );
 }
 
