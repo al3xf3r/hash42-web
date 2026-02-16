@@ -1610,7 +1610,7 @@ if (j && j.starterRtxGifted === false) {
     const totalNetworkPower = Number(protocolStatus?.totalPower || "0"); // MH/s
     // Mini visual scaling (420 max per GPU * 5 slots realistic per user, ma network può essere grande)
 // Facciamo una scala dinamica soft cap a 100k per la barra visuale
-const networkPowerScaleMax = 10000; 
+const networkPowerScaleMax = 30000; 
 const networkPowerPercent = Math.min(
   100,
   totalNetworkPower > 0
@@ -2149,7 +2149,7 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
   function LeaderboardTab() {
     
     const totalNetworkPower = Number(protocolStatus?.totalPower || "0");
-    const networkPowerScaleMax = 10000;
+    const networkPowerScaleMax = 30000;
 const networkPowerPercent = Math.min(
   100,
   totalNetworkPower > 0 ? (totalNetworkPower / networkPowerScaleMax) * 100 : 0
@@ -2170,37 +2170,37 @@ const networkPowerPercent = Math.min(
         <span className="text-cyan-500 font-bold">{totalNetworkPower} MH/s</span>
       </div>
 
-      {/* BAR SECTION (outside the text-sm block) */}
-      <div className="mt-3 w-full">
+      {/* BAR SECTION */}
+<div className="mt-3 w-full min-w-0">
   <div className="text-[11px] text-zinc-500 mb-2">Live network power signal</div>
 
-  {/* OUTER: no overflow-hidden (così il glow può vivere) */}
-  <div className="relative w-full h-2.5 rounded-full border border-zinc-800 bg-zinc-900/80">
-
-    {/* INNER MASK: qui facciamo il clipping, non fuori */}
+  {/* TRACK */}
+  <div className="relative block w-full h-2.5 rounded-full border border-zinc-800 bg-zinc-900/80">
+    {/* CLIP MASK */}
     <div className="absolute inset-0 rounded-full overflow-hidden">
-
-      {/* 1) TRACK: gradiente pieno sempre visibile */}
+      {/* track gradient always visible */}
       <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 opacity-25" />
 
-      {/* 2) SOFT GLOW: pieno, leggero, sempre */}
+      {/* soft glow */}
       <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 opacity-25 animate-pulse" />
 
-      {/* 3) SHINE che scorre */}
-      <div className="absolute inset-0 opacity-18">
-        <div className="w-1/3 h-full bg-white/35 blur-md animate-[shine_1.8s_linear_infinite]" />
+      {/* moving shine */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="h-full w-1/3 bg-white/35 blur-md animate-[shine_1.8s_linear_infinite]" />
       </div>
 
-      {/* 4) FILL percentuale sopra */}
+      {/* fill */}
       <div
         className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400"
         style={{ width: `${Math.max(2, networkPowerPercent)}%` }}
       />
     </div>
 
-    {/* GLOW esterno (fuori dal mask) */}
-    <div className="pointer-events-none absolute inset-0 rounded-full"
-         style={{ boxShadow: "0 0 16px rgba(249,115,22,0.28)" }} />
+    {/* OUTER glow */}
+    <div
+      className="pointer-events-none absolute inset-0 rounded-full"
+      style={{ boxShadow: "0 0 16px rgba(249,115,22,0.28)" }}
+    />
   </div>
 
   <style jsx>{`
