@@ -90,15 +90,28 @@ type RewardsV2Response = {
   today: number;
   power: number;
   claimableNano: string; // bigint as string
-  daily?: any;
+  canClaim?: boolean;
+  minPayoutNano?: string;
+  minPayoutCredits?: number;
+  missingToMinNano?: string;
+  daily?: {
+    distributedNano?: string;
+    usedNano?: string;
+    remainingNano?: string;
+    day?: number;
+  };
 };
 
 type RewardsV2ClaimResponse = {
   ok: boolean;
   paidNano: string;
-  partial: boolean;
-  claimableBeforeNano: string;
-  claimableAfterNano: string;
+  partial?: boolean;
+  claimableBeforeNano?: string;
+  claimableAfterNano?: string;
+  reason?: string; // "below_min_payout" etc
+  minPayoutNano?: string;
+  minPayoutCredits?: number;
+  missingToMinNano?: string;
 };
 
 type ProtocolStatusResponse = {
@@ -1063,12 +1076,14 @@ const [starterStep, setStarterStep] = useState(0);
 
   // IMPORTANT: inventory also needed in Protocol for rig selection
   useEffect(() => {
-    if (!token) return;
-    if (tab === "protocol") {
-      fetchInventory(token).catch(() => {});
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, token]);
+  if (!token) return;
+  if (tab === "protocol") {
+    fetchInventory(token).catch(() => {});
+    fetchRewardsV2(token).catch(() => {});
+    fetchMe(token).catch(() => {});
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [tab, token]);
 
   const invSorted = useMemo(() => {
     const copy = [...inv];
@@ -1091,7 +1106,9 @@ const [starterStep, setStarterStep] = useState(0);
 const husdSymbol = "HUSD";
 
   const v2ClaimableNano = Number(rewardsV2?.claimableNano || "0");
-  const canClaimV2 = v2ClaimableNano > 0;
+const canClaimV2 = rewardsV2?.canClaim === true; // usa il backend
+const v2MinPayoutNano = Number(rewardsV2?.minPayoutNano || "0");
+const v2MissingNano = Number(rewardsV2?.missingToMinNano || "0");
 
   const rigPower = useMemo(() => rig.reduce((acc, g) => acc + Number(g?.mhps || 0), 0), [rig]);
 
@@ -1269,11 +1286,22 @@ if (j && j.starterRtxGifted === false) {
       if (!r.ok || !j?.ok) throw new Error(j.error || `v2_claim_failed_${r.status}`);
 
       const paid = Number(j?.paidNano || "0");
-      setToast(paid > 0 ? `Claimed: +${fmtCredits8FromNano(paid)} ${husdSymbol}` : "Nothing to claim");
+
+if (paid > 0) {
+  setToast(`Claimed: +${fmtCredits8FromNano(paid)} ${husdSymbol}`);
+} else if (j?.reason === "below_min_payout") {
+  const minNano = Number(j?.minPayoutNano || rewardsV2?.minPayoutNano || "0");
+  const missNano = Number(j?.missingToMinNano || rewardsV2?.missingToMinNano || "0");
+  setToast(
+    `Below minimum payout. Min ${fmtCredits2FromNano(minNano)} ${husdSymbol}, missing ${fmtCredits8FromNano(missNano)} ${husdSymbol}`
+  );
+} else {
+  setToast("Nothing to claim");
+}
 
       await fetchMe(token);
       await fetchRewardsV2(token);
-      if (tab === "vault") await fetchActivity(token);
+      await fetchActivity(token).catch(() => {});
     } catch (e: any) {
       showError("Claim failed", e?.message || "Claim failed");
     } finally {
@@ -1300,7 +1328,7 @@ if (j && j.starterRtxGifted === false) {
     // refresh state
     await fetchMe(token);
     await fetchInventory(token);
-    if (tab === "vault") await fetchActivity(token);
+    await fetchActivity(token).catch(() => {});
   } catch (e: any) {
     showError("Starter claim failed", e?.message || "Starter claim failed");
   } finally {
@@ -1419,7 +1447,7 @@ async function apiUnequip(slotIndex0: number) {
 
       setToast(j.alreadyUnlocked ? "Already unlocked" : `Slot ${slot} unlocked`);
       await fetchMe(token);
-      if (tab === "vault") await fetchActivity(token);
+      await fetchActivity(token).catch(() => {});
     } catch (e: any) {
       showError("Buy slot failed", e?.message || "Buy slot failed");
     } finally {
@@ -1446,7 +1474,7 @@ async function apiUnequip(slotIndex0: number) {
         setToast("Pack opened");
         await fetchMe(token);
         await fetchInventory(token);
-        if (tab === "vault") await fetchActivity(token);
+        await fetchActivity(token).catch(() => {});
       } catch (e: any) {
         showError("Open pack failed", e?.message || "Open pack failed");
       } finally {
@@ -1557,6 +1585,7 @@ async function apiUnequip(slotIndex0: number) {
     setPickSlot(null);
     await fetchMe(token!);
     await fetchProtocolStatus();
+    await fetchRewardsV2(token!);
   } catch (e: any) {
     showError("Unequip failed", e?.message || "Unequip failed");
   } finally {
@@ -1601,6 +1630,7 @@ async function apiUnequip(slotIndex0: number) {
       // 4) refresh server data
       await fetchMe(token!);
       await fetchProtocolStatus();
+      await fetchRewardsV2(token!);
     } catch (e: any) {
       showError("Auto Best failed", e?.message || "Auto Best failed");
     } finally {
@@ -1648,6 +1678,7 @@ async function apiUnequip(slotIndex0: number) {
     setPickSlot(null);
     await fetchMe(token!);
     await fetchProtocolStatus();
+    await fetchRewardsV2(token!);
   } catch (e: any) {
     showError("Equip failed", e?.message || "Equip failed");
   } finally {
@@ -1987,6 +2018,13 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
                   {rewardsV2Loading ? "..." : fmtCredits8FromNano(v2ClaimableNano)} {husdSymbol}
                 </span>
               </div>
+{!rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2 && (
+  <div className="text-[11px] text-orange-300/90">
+    Minimum payout: {fmtCredits2FromNano(v2MinPayoutNano)} {husdSymbol}. Missing:{" "}
+    {fmtCredits8FromNano(v2MissingNano)} {husdSymbol}.
+  </div>
+)}
+
               <div className="flex justify-between">
                 <span className="text-zinc-400">Vault</span>
                 <span className="font-bold">
