@@ -1,7 +1,7 @@
 // app/app/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { BrowserProvider } from "ethers";
 
 const API = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
@@ -432,8 +432,9 @@ function RigWiringMainframe({
   rig: (InventoryItem | null)[];
   slotsUnlocked: number;
   loggedIn: boolean;
-  wrapRef: React.RefObject<HTMLDivElement | null>;
-  slotRefs: React.RefObject<(HTMLButtonElement | null)[]>;
+  wrapRef: RefObject<HTMLDivElement | null>;
+slotRefs: RefObject<(HTMLButtonElement | null)[]>;
+
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -1323,38 +1324,44 @@ if (j && j.starterRtxGifted === false) {
 
   async function apiEquip(slotIndex0: number, userGpuId: number) {
   if (!token) throw new Error("not_logged_in");
+
+  // backend vuole 1..5 (come prima app)
+  const slotIndex = slotIndex0 + 1;
+
   const r = await fetch(`${API}/rigs/equip`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      slot_index: slotIndex0 + 1,            // IMPORTANT: backend di solito usa 1..5
-      user_gpu_instance_id: userGpuId,        // questa è ug.id
-    }),
+    body: JSON.stringify({ slotIndex, userGpuId }),
   });
+
   const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j?.ok) throw new Error(j?.error || `equip_failed_${r.status}`);
+  if (!r.ok) throw new Error(j.error || `equip_failed_${r.status}`);
   return j;
 }
 
 async function apiUnequip(slotIndex0: number) {
   if (!token) throw new Error("not_logged_in");
+
+  const slotIndex = slotIndex0 + 1;
+
   const r = await fetch(`${API}/rigs/unequip`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      slot_index: slotIndex0 + 1, // 1..5
-    }),
+    body: JSON.stringify({ slotIndex }),
   });
+
   const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j?.ok) throw new Error(j?.error || `unequip_failed_${r.status}`);
+  if (!r.ok) throw new Error(j.error || `unequip_failed_${r.status}`);
   return j;
 }
+
+
 
 
   async function fetchLeaderboardPublic() {
