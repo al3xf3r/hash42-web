@@ -1751,10 +1751,20 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
 
 
 
-    // Estimated next payout (requires totalPower)
-    const totalPower = Number(protocolStatus?.totalPower || "0");
-    const estNextNano =
-      totalPower > 0 && effectivePower > 0 ? Math.floor((availNano * effectivePower) / totalPower) : null;
+    // Estimated next payout (daily-based, NOT available-based)
+const totalPower = Number(protocolStatus?.totalPower || "0");
+
+const dailyUsedNano = Number(protocolStatus?.dailyPayoutUsedNano || "0");
+const lastDailyNano = Number(protocolStatus?.lastDailyDistributionNano || "0");
+
+// pick the best "daily amount" we can justify
+const dailyAmountNano =
+  dailyUsedNano > 0 ? dailyUsedNano : lastDailyNano > 0 ? lastDailyNano : null;
+
+const estNextNano =
+  dailyAmountNano !== null && totalPower > 0 && effectivePower > 0
+    ? Math.floor((dailyAmountNano * effectivePower) / totalPower)
+    : null;
 
     return (
       <div className="space-y-4">
@@ -1866,8 +1876,13 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
               </span>
             </div>
             <div className="text-[11px] text-zinc-500">
-              Estimate uses: Available × (Your Power / Total Power). Requires server totalPower.
-            </div>
+  Estimate uses: Daily distribution × (Your Power / Total Power).
+  {Number(protocolStatus?.dailyPayoutUsedNano || "0") > 0
+    ? " Source: today."
+    : Number(protocolStatus?.lastDailyDistributionNano || "0") > 0
+    ? " Source: last distribution."
+    : " Source: —"}
+</div>
           </div>
         </div>
 
