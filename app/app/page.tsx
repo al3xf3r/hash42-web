@@ -1321,6 +1321,42 @@ if (j && j.starterRtxGifted === false) {
     }
   }
 
+  async function apiEquip(slotIndex0: number, userGpuId: number) {
+  if (!token) throw new Error("not_logged_in");
+  const r = await fetch(`${API}/rigs/equip`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      slot_index: slotIndex0 + 1,            // IMPORTANT: backend di solito usa 1..5
+      user_gpu_instance_id: userGpuId,        // questa è ug.id
+    }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j?.ok) throw new Error(j?.error || `equip_failed_${r.status}`);
+  return j;
+}
+
+async function apiUnequip(slotIndex0: number) {
+  if (!token) throw new Error("not_logged_in");
+  const r = await fetch(`${API}/rigs/unequip`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      slot_index: slotIndex0 + 1, // 1..5
+    }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j?.ok) throw new Error(j?.error || `unequip_failed_${r.status}`);
+  return j;
+}
+
+
   async function fetchLeaderboardPublic() {
     setLbLoading(true);
     try {
@@ -1505,10 +1541,22 @@ if (j && j.starterRtxGifted === false) {
           <div className="mt-3 flex gap-2">
             <button
               disabled={slotLocked}
-              onClick={() => {
-                setRigSlot(pickSlot, null);
-                setPickSlot(null);
-              }}
+              onClick={async () => {
+  if (slotLocked) return;
+  try {
+    setBusy(true);
+    await apiUnequip(pickSlot);
+    setRigSlot(pickSlot, null);      // UI update
+    setPickSlot(null);
+    await fetchMe(token!);
+    await fetchProtocolStatus();
+  } catch (e: any) {
+    showError("Unequip failed", e?.message || "Unequip failed");
+  } finally {
+    setBusy(false);
+  }
+}}
+
               className={[
                 "flex-1 py-3 rounded-xl border text-sm",
                 slotLocked
@@ -1519,23 +1567,50 @@ if (j && j.starterRtxGifted === false) {
               Clear Slot
             </button>
             <button
-              onClick={() => {
-                if (slotLocked) return;
-                const used = new Set(rig.filter(Boolean).map((g) => g!.userGpuId));
-                const best = invSorted.find((g) => !used.has(g.userGpuId));
-                if (best) setRigSlot(pickSlot, best);
-                setPickSlot(null);
-              }}
-              disabled={slotLocked || invSorted.length === 0}
-              className={[
-                "flex-1 py-3 rounded-xl font-extrabold text-sm",
-                slotLocked || invSorted.length === 0
-                  ? "bg-orange-500/15 text-orange-200/60 border border-orange-500/20 cursor-not-allowed"
-                  : "bg-orange-500 text-black",
-              ].join(" ")}
-            >
-              Auto Best
-            </button>
+  onClick={async () => {
+    if (slotLocked) return;
+
+    try {
+      setBusy(true);
+
+      const used = new Set(rig.filter(Boolean).map((g) => g!.userGpuId));
+      const best = invSorted.find((g) => !used.has(g.userGpuId));
+
+      if (!best) {
+        setToast("No available GPU (all already used)");
+        setPickSlot(null);
+        return;
+      }
+
+      // 1) backend write
+      await apiEquip(pickSlot!, best.userGpuId);
+
+      // 2) UI update
+      setRigSlot(pickSlot!, best);
+
+      // 3) close modal
+      setPickSlot(null);
+
+      // 4) refresh server data
+      await fetchMe(token!);
+      await fetchProtocolStatus();
+    } catch (e: any) {
+      showError("Auto Best failed", e?.message || "Auto Best failed");
+    } finally {
+      setBusy(false);
+    }
+  }}
+  disabled={busy || slotLocked || invSorted.length === 0}
+  className={[
+    "flex-1 py-3 rounded-xl font-extrabold text-sm",
+    busy || slotLocked || invSorted.length === 0
+      ? "bg-orange-500/15 text-orange-200/60 border border-orange-500/20 cursor-not-allowed"
+      : "bg-orange-500 text-black",
+  ].join(" ")}
+>
+  {busy ? "..." : "Auto Best"}
+</button>
+
           </div>
 
           <div className="mt-3 max-h-[55vh] overflow-y-auto pr-1 overscroll-contain space-y-2">
@@ -1557,10 +1632,22 @@ if (j && j.starterRtxGifted === false) {
                   <button
                     key={g.userGpuId}
                     disabled={disabled}
-                    onClick={() => {
-                      setRigSlot(pickSlot, g);
-                      setPickSlot(null);
-                    }}
+                    onClick={async () => {
+  if (slotLocked) return;
+  try {
+    setBusy(true);
+    await apiEquip(pickSlot, g.userGpuId);
+    setRigSlot(pickSlot, g);        // UI update
+    setPickSlot(null);
+    await fetchMe(token!);
+    await fetchProtocolStatus();
+  } catch (e: any) {
+    showError("Equip failed", e?.message || "Equip failed");
+  } finally {
+    setBusy(false);
+  }
+}}
+
                     className={[
                       "w-full rounded-xl border p-3 text-left flex gap-3 items-center",
                       selectedHere
