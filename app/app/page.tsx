@@ -2027,8 +2027,8 @@ const estNextNano =
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="font-bold text-lg">Your Position</div>
           <div className="text-zinc-400 text-sm mt-1">
-            Connect + sign to see your claimable rewards and wallet-linked stats.
-          </div>
+  {!token ? "Connect + sign to see your claimable rewards and wallet-linked stats." : "Wallet-linked rewards and stats."}
+</div>
 
           {!token ? (
             <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">
@@ -2060,90 +2060,130 @@ const estNextNano =
               </div>
             </div>
           ) : (
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm space-y-2">
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Power</span>
-                <span className="font-extrabold">{effectivePower}</span>
-              </div>
+  <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-4">
+    {/* rows wrapper: fixed rhythm, no jumps */}
+    <div className="space-y-3">
+      {/* POWER */}
+      <div className="flex items-center justify-between">
+        <span className="text-zinc-500 text-xs uppercase tracking-wide">Power</span>
+        <span className="font-extrabold tabular-nums text-zinc-100">{effectivePower}</span>
+      </div>
 
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Est. next payout</span>
-                <span className="font-extrabold text-cyan-300">
-                  {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${husdSymbol}`}
-                </span>
-              </div>
+      {/* EST NEXT PAYOUT */}
+      <div className="flex items-center justify-between">
+        <span className="text-zinc-500 text-xs uppercase tracking-wide">Est. next payout</span>
+        <span className="font-extrabold tabular-nums text-cyan-300">
+          {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${husdSymbol}`}
+        </span>
+      </div>
 
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Claimable</span>
-                <span className="font-extrabold text-cyan-300">
-                  {rewardsV2Loading ? "..." : fmtCredits8FromNano(v2ClaimableNano)} {husdSymbol}
-                </span>
-              </div>
-              {rewardsV2?.daily && (() => {
-  const remainingNano = Number(rewardsV2.daily.remainingNano || "0");
-  const isZero = remainingNano <= 0;
+      {/* CLAIMABLE */}
+      <div className="flex items-center justify-between">
+        <span className="text-zinc-500 text-xs uppercase tracking-wide">Claimable</span>
 
-  return (
-    <div className="text-[11px] mt-1">
-      <span className="text-zinc-500">Today cap remaining: </span>
-      <span className={isZero ? "text-red-400 font-semibold" : "text-zinc-300"}>
-        {fmtCredits8FromNano(remainingNano)} {husdSymbol}
-      </span>
+        {/* placeholder always same width/height */}
+        <span
+          className="font-extrabold tabular-nums text-cyan-300"
+          style={{ minWidth: 170, textAlign: "right" }}
+        >
+          <span style={{ opacity: rewardsV2Loading ? 0.35 : 1 }}>
+            {rewardsV2Loading ? "0000.00000000" : fmtCredits8FromNano(v2ClaimableNano)}
+          </span>{" "}
+          {husdSymbol}
+        </span>
+      </div>
+
+      {/* TODAY CAP (always rendered) */}
+      {(() => {
+        const remainingNano = Number(rewardsV2?.daily?.remainingNano || "0");
+        const hasDaily = !!rewardsV2?.daily;
+        const isZero = hasDaily && remainingNano <= 0;
+
+        return (
+          <div
+            className="text-[12px] leading-4 tabular-nums"
+            style={{ minHeight: 16 }} // prevents jump
+          >
+            <span className="text-zinc-500">Today cap remaining: </span>
+
+            <span
+              className={isZero ? "text-red-400 font-semibold" : "text-zinc-200"}
+              style={{ opacity: hasDaily && !rewardsV2Loading ? 1 : 0.35 }}
+            >
+              {hasDaily && !rewardsV2Loading ? fmtCredits8FromNano(remainingNano) : "0000.00000000"} {husdSymbol}
+            </span>
+          </div>
+        );
+      })()}
+
+      {/* MIN PAYOUT LINE (always rendered, toggles opacity) */}
+      {(() => {
+        const show = !rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2;
+        return (
+          <div
+            className="text-[12px] leading-4"
+            style={{ minHeight: 16, opacity: show ? 1 : 0 }} // keeps space even when hidden
+          >
+            <span className="text-zinc-500">Minimum payout: </span>
+            <span className="text-orange-300 tabular-nums font-semibold">
+              {fmtCredits2FromNano(v2MinPayoutNano)} {husdSymbol}
+            </span>
+            <span className="text-zinc-500"> • Missing: </span>
+            <span className="text-orange-300 tabular-nums font-semibold">
+              {fmtCredits8FromNano(v2MissingNano)} {husdSymbol}
+            </span>
+          </div>
+        );
+      })()}
+
+      {/* VAULT */}
+      <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
+        <span className="text-zinc-500 text-xs uppercase tracking-wide">Vault</span>
+        <span className="font-extrabold tabular-nums text-zinc-100">
+          {fmtCredits2FromNano(husdNano)} {husdSymbol}
+        </span>
+      </div>
     </div>
-  );
-})()}
 
-{!rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2 && (
-  <div className="text-[11px] text-orange-300/90">
-    Minimum payout: {fmtCredits2FromNano(v2MinPayoutNano)} {husdSymbol}. Missing:{" "}
-    {fmtCredits8FromNano(v2MissingNano)} {husdSymbol}.
+    {/* buttons */}
+    <div className="mt-4 grid grid-cols-2 gap-2">
+      <button
+        onClick={() => token && fetchMe(token)}
+        disabled={busy}
+        className="py-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-sm font-semibold disabled:opacity-50"
+      >
+        Sync
+      </button>
+
+      <button
+        onClick={claimRewardsV2}
+        disabled={busy || !canClaimV2}
+        className={[
+          "py-3 rounded-xl text-sm font-extrabold border",
+          canClaimV2
+            ? "bg-cyan-400 text-black border-cyan-400"
+            : "bg-cyan-400/10 text-cyan-200 border-cyan-400/20",
+          "disabled:opacity-100 disabled:cursor-not-allowed",
+        ].join(" ")}
+      >
+        Claim
+      </button>
+    </div>
+
+    <button
+      onClick={logout}
+      className="mt-2 w-full py-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm font-semibold"
+    >
+      Logout
+    </button>
+
+    <div className="text-zinc-500 text-xs mt-3">
+      Claim adds to Vault HUSD (beta). Marketplace + Vault require login.
+    </div>
   </div>
 )}
 
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Vault</span>
-                <span className="font-bold">
-                  {fmtCredits2FromNano(husdNano)} {husdSymbol}
-                </span>
-              </div>
-
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => token && fetchMe(token)}
-                  disabled={busy}
-                  className="flex-1 py-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-sm"
-                >
-                  Sync
-                </button>
-                <button
-                  onClick={claimRewardsV2}
-                  disabled={busy || !canClaimV2}
-                  className={[
-                    "flex-1 py-3 rounded-xl font-extrabold border text-sm",
-                    canClaimV2
-                      ? "bg-cyan-400 text-black border-cyan-400"
-                      : "bg-cyan-400/10 text-cyan-200 border-cyan-400/20",
-                    "disabled:opacity-100 disabled:cursor-not-allowed",
-                  ].join(" ")}
-                >
-                  Claim
-                </button>
-              </div>
-
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={logout}
-                  className="w-full py-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm"
-                >
-                  Logout
-                </button>
-              </div>
-
-              <div className="text-zinc-500 text-xs mt-3">
-                Claim adds to Vault HUSD (beta). Marketplace + Vault require login.
-              </div>
-            </div>
-          )}
+          
         </div>
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
