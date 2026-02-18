@@ -1015,6 +1015,11 @@ const [starterStep, setStarterStep] = useState(0);
   const [rig, setRig] = useState<(InventoryItem | null)[]>([null, null, null, null, null]);
   const [pickSlot, setPickSlot] = useState<number | null>(null);
 
+
+// ✅ evita che il rig venga ricaricato da localStorage ad ogni refresh/sync
+const rigHydratedRef = useRef(false);
+
+
   useEffect(() => {
     const t = localStorage.getItem("hash42_token");
     const a = localStorage.getItem("hash42_address");
@@ -1033,6 +1038,11 @@ const [starterStep, setStarterStep] = useState(0);
     const t = setTimeout(() => setToast(null), 2200);
     return () => clearTimeout(t);
   }, [toast]);
+
+useEffect(() => {
+  // quando cambia wallet, consenti nuova hydration
+  rigHydratedRef.current = false;
+}, [address]);
 
   useEffect(() => {
   if (!showStarterRtx) return;
@@ -1167,14 +1177,21 @@ const v2MissingNano = Number(rewardsV2?.missingToMinNano || "0");
     }
   }
 
-  // after inventory updates, try to hydrate rig selection from localStorage
-  useEffect(() => {
-    if (!token || !address) return;
-    if (!inv.length) return;
-    const loaded = loadRigFromStorage(address, inv);
-    if (loaded) setRig(loaded);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inv.length, token, address]);
+  // ✅ hydrate rig from localStorage ONE TIME (after inventory is ready)
+useEffect(() => {
+  if (!token || !address) return;
+  if (!inv.length) return;
+
+  // già idratato → non sovrascrivere più il rig
+  if (rigHydratedRef.current) return;
+
+  const loaded = loadRigFromStorage(address, inv);
+  if (loaded) setRig(loaded);
+
+  rigHydratedRef.current = true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [inv.length, token, address]);
+
 
   async function connectWallet() {
     if (popup) setPopup(null);
@@ -1244,6 +1261,7 @@ if (!r2.ok) throw new Error(v?.error || `verify_failed_${r2.status}`);
     setActivity([]);
     setInv([]);
     setRig([null, null, null, null, null]);
+rigHydratedRef.current = false;
     setToast("Logged out");
     if (popup) setPopup(null);
   }
