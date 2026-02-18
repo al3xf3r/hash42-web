@@ -2138,44 +2138,49 @@ const estNextNano =
   );
 })()}
 
-{/* MINIMUM / PAYOUT (two aligned rows) */}
+{/* MINIMUM PAYOUT (2 rows layout) */}
 {(() => {
   const show = !rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2;
 
   return (
-    <div
-      className="space-y-1"
-      style={{ opacity: show ? 1 : 0, pointerEvents: show ? "auto" : "none" }}
-    >
-      {/* MINIMUM */}
-      <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+    <>
+      {/* Row 1 */}
+      <div
+        className="grid grid-cols-[1fr_auto] items-center gap-3"
+        style={{ opacity: show ? 1 : 0 }}
+      >
         <span className="text-zinc-500 text-xs uppercase tracking-wide">
           Minimum
         </span>
 
-        <span className="text-sm font-semibold text-orange-300 tabular-nums text-right whitespace-nowrap">
+        <span className="text-sm font-extrabold text-orange-300 tabular-nums text-right">
           {fmtCredits2FromNano(v2MinPayoutNano)}{" "}
-          <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+          <span className="text-zinc-500 text-xs font-semibold">
+            {husdSymbol}
+          </span>
         </span>
       </div>
 
-      {/* PAYOUT (Missing) */}
-      <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+      {/* Row 2 */}
+      <div
+        className="grid grid-cols-[1fr_auto] items-center gap-3"
+        style={{ opacity: show ? 1 : 0 }}
+      >
         <span className="text-zinc-500 text-xs uppercase tracking-wide">
           Payout
         </span>
 
-        
-         
-        
-        <span className="text-zinc-500 text-xs font-semibold">Missing</span>
-        <span className="text-sm font-semibold text-orange-300 tabular-nums text-right whitespace-nowrap">
+        <span className="text-sm font-semibold text-orange-300 tabular-nums text-right">
+          <span className="text-zinc-500 text-xs font-semibold">
+            Missing
+          </span>{" "}
           {fmtCredits8FromNano(v2MissingNano)}{" "}
-          
-           <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+          <span className="text-zinc-500 text-xs font-semibold">
+            {husdSymbol}
+          </span>
         </span>
       </div>
-    </div>
+    </>
   );
 })()}
 
