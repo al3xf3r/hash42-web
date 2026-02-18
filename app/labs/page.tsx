@@ -685,6 +685,8 @@ export default function LabsPage() {
 
             </div>
 
+            
+
             <div className="flex flex-wrap items-center gap-4 text-sm text-white/60">
               <a href="/" className="hover:text-white">
                 Home
