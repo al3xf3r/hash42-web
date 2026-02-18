@@ -1773,8 +1773,12 @@ const estNextNano =
             <div className="min-w-0">
               <div className="text-zinc-400 text-xs">Hash42 Protocol</div>
               <div className="mt-1 text-2xl font-extrabold tracking-tight">
-  Active Pool <span className="text-xs text-zinc-500">{protocolLoading ? "updating…" : ""}</span>
+  Active Pool{" "}
+  <span className={`text-xs text-zinc-500 ${protocolLoading ? "" : "invisible"}`}>
+    updating…
+  </span>
 </div>
+
 
               <div className="text-zinc-500 text-xs mt-1">
                 Updated: {protocolStatus?.serverNow ? fmtWhen(protocolStatus.serverNow) : "—"}
