@@ -1848,27 +1848,25 @@ const estNextNano =
     </div>
   </div>
 
-  {/* Energy Flow Bar (premium) */}
+  {/* Energy Flow Bar (light, no jank) */}
 <div className="mt-2">
-  <div className="h-2.5 rounded-full bg-zinc-900/80 overflow-hidden relative border border-zinc-800">
-    {/* glow always full */}
-    <div className="absolute inset-0">
-      <div className="w-full h-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 opacity-35 blur-[2px] animate-pulse" />
-    </div>
-
-    {/* subtle moving shine */}
-    <div className="absolute inset-0 opacity-20">
-      <div className="w-1/3 h-full bg-white/30 blur-md animate-[shine_1.8s_linear_infinite]" />
-    </div>
+  <div className="relative h-2.5 rounded-full border border-zinc-800 bg-zinc-900/80 overflow-hidden">
+    {/* static soft gradient (no blur, no pulse) */}
+    <div className="absolute inset-0 opacity-25 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400" />
 
     {/* fill */}
     <div
-      className="relative h-full rounded-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400"
+      className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400"
       style={{
-        width: `${Math.max(2, networkPowerPercent)}%`, // minimo visibile
-        boxShadow: "0 0 18px rgba(249,115,22,0.45)",
+        width: `${Math.max(2, networkPowerPercent)}%`,
+        willChange: "width",
       }}
     />
+
+    {/* shine (transform only, cheap) */}
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="h-full w-1/3 bg-white/25 blur-sm animate-[shine_1.8s_linear_infinite]" />
+    </div>
   </div>
 
   <style jsx>{`
@@ -1876,8 +1874,12 @@ const estNextNano =
       0% { transform: translateX(-40%); }
       100% { transform: translateX(340%); }
     }
+    @media (prefers-reduced-motion: reduce) {
+      .animate-\\[shine_1\\.8s_linear_infinite\\] { animation: none !important; }
+    }
   `}</style>
 </div>
+
 
   <div className="text-[11px] text-zinc-500 mt-2">
     Real-time aggregated hash power contributing to revenue distribution.
@@ -2024,167 +2026,178 @@ const estNextNano =
   </div>
 </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <div className="font-bold text-lg">Your Position</div>
-          <div className="text-zinc-400 text-sm mt-1">
-  {!token ? "Connect + sign to see your claimable rewards and wallet-linked stats." : "Wallet-linked rewards and stats."}
-</div>
-
-          {!token ? (
-            <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-zinc-400 text-xs">Wallet</div>
-                  <div className="font-mono">{address ? shortAddr(address) : "Not connected"}</div>
-                </div>
-                {!address ? (
-                  <button
-                    onClick={connectWallet}
-                    className="px-3 py-2 rounded-lg bg-orange-500 text-black font-extrabold text-xs"
-                  >
-                    Connect
-                  </button>
-                ) : (
-                  <button
-                    onClick={login}
-                    disabled={busy}
-                    className="px-3 py-2 rounded-lg bg-orange-500 text-black font-extrabold text-xs disabled:opacity-50"
-                  >
-                    {busy ? "..." : "Sign & Enter"}
-                  </button>
-                )}
-              </div>
-
-              <div className="text-zinc-500 text-xs mt-3">
-                No transaction. You only sign a message to create a session token.
-              </div>
-            </div>
-          ) : (
-  <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-4">
-    {/* rows wrapper: fixed rhythm, no jumps */}
-    <div className="space-y-3">
-      {/* POWER */}
-      <div className="flex items-center justify-between">
-        <span className="text-zinc-500 text-xs uppercase tracking-wide">Power</span>
-        <span className="font-extrabold tabular-nums text-zinc-100">{effectivePower}</span>
-      </div>
-
-      {/* EST NEXT PAYOUT */}
-      <div className="flex items-center justify-between">
-        <span className="text-zinc-500 text-xs uppercase tracking-wide">Est. next payout</span>
-        <span className="font-extrabold tabular-nums text-cyan-300">
-          {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${husdSymbol}`}
-        </span>
-      </div>
-
-      {/* CLAIMABLE */}
-      <div className="flex items-center justify-between">
-        <span className="text-zinc-500 text-xs uppercase tracking-wide">Claimable</span>
-
-        {/* placeholder always same width/height */}
-        <span
-          className="font-extrabold tabular-nums text-cyan-300"
-          style={{ minWidth: 170, textAlign: "right" }}
-        >
-          <span style={{ opacity: rewardsV2Loading ? 0.35 : 1 }}>
-            {rewardsV2Loading ? "0000.00000000" : fmtCredits8FromNano(v2ClaimableNano)}
-          </span>{" "}
-          {husdSymbol}
-        </span>
-      </div>
-
-      {/* TODAY CAP (always rendered) */}
-      {(() => {
-        const remainingNano = Number(rewardsV2?.daily?.remainingNano || "0");
-        const hasDaily = !!rewardsV2?.daily;
-        const isZero = hasDaily && remainingNano <= 0;
-
-        return (
-          <div
-            className="text-[12px] leading-4 tabular-nums"
-            style={{ minHeight: 16 }} // prevents jump
-          >
-            <span className="text-zinc-500">Today cap remaining: </span>
-
-            <span
-              className={isZero ? "text-red-400 font-semibold" : "text-zinc-200"}
-              style={{ opacity: hasDaily && !rewardsV2Loading ? 1 : 0.35 }}
-            >
-              {hasDaily && !rewardsV2Loading ? fmtCredits8FromNano(remainingNano) : "0000.00000000"} {husdSymbol}
-            </span>
-          </div>
-        );
-      })()}
-
-      {/* MIN PAYOUT LINE (always rendered, toggles opacity) */}
-      {(() => {
-        const show = !rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2;
-        return (
-          <div
-            className="text-[12px] leading-4"
-            style={{ minHeight: 16, opacity: show ? 1 : 0 }} // keeps space even when hidden
-          >
-            <span className="text-zinc-500">Minimum payout: </span>
-            <span className="text-orange-300 tabular-nums font-semibold">
-              {fmtCredits2FromNano(v2MinPayoutNano)} {husdSymbol}
-            </span>
-            <span className="text-zinc-500"> • Missing: </span>
-            <span className="text-orange-300 tabular-nums font-semibold">
-              {fmtCredits8FromNano(v2MissingNano)} {husdSymbol}
-            </span>
-          </div>
-        );
-      })()}
-
-      {/* VAULT */}
-      <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
-        <span className="text-zinc-500 text-xs uppercase tracking-wide">Vault</span>
-        <span className="font-extrabold tabular-nums text-zinc-100">
-          {fmtCredits2FromNano(husdNano)} {husdSymbol}
-        </span>
-      </div>
-    </div>
-
-    {/* buttons */}
-    <div className="mt-4 grid grid-cols-2 gap-2">
-      <button
-        onClick={() => token && fetchMe(token)}
-        disabled={busy}
-        className="py-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-sm font-semibold disabled:opacity-50"
-      >
-        Sync
-      </button>
-
-      <button
-        onClick={claimRewardsV2}
-        disabled={busy || !canClaimV2}
-        className={[
-          "py-3 rounded-xl text-sm font-extrabold border",
-          canClaimV2
-            ? "bg-cyan-400 text-black border-cyan-400"
-            : "bg-cyan-400/10 text-cyan-200 border-cyan-400/20",
-          "disabled:opacity-100 disabled:cursor-not-allowed",
-        ].join(" ")}
-      >
-        Claim
-      </button>
-    </div>
-
-    <button
-      onClick={logout}
-      className="mt-2 w-full py-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm font-semibold"
-    >
-      Logout
-    </button>
-
-    <div className="text-zinc-500 text-xs mt-3">
-      Claim adds to Vault HUSD (beta). Marketplace + Vault require login.
-    </div>
-  </div>
-)}
+        
 
           
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+  <div className="flex items-start justify-between gap-3">
+    <div className="min-w-0">
+      <div className="text-zinc-400 text-xs">Your Position</div>
+      <div className="mt-1 text-sm text-zinc-500">
+        {!token
+          ? "Connect + sign to view wallet-linked rewards and stats."
+          : "Wallet-linked rewards and stats."}
+      </div>
+    </div>
+  </div>
+
+  {!token ? (
+    <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3 text-sm text-zinc-300">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-zinc-500 text-xs uppercase tracking-wide">Wallet</div>
+          <div className="font-mono text-sm text-zinc-200 truncate">
+            {address ? shortAddr(address) : "Not connected"}
+          </div>
         </div>
+
+        {!address ? (
+          <button
+            onClick={connectWallet}
+            className="shrink-0 px-3 py-2 rounded-lg bg-orange-500 text-black font-extrabold text-xs"
+          >
+            Connect
+          </button>
+        ) : (
+          <button
+            onClick={login}
+            disabled={busy}
+            className="shrink-0 px-3 py-2 rounded-lg bg-orange-500 text-black font-extrabold text-xs disabled:opacity-50"
+          >
+            {busy ? "..." : "Sign & Enter"}
+          </button>
+        )}
+      </div>
+
+      <div className="text-zinc-500 text-xs mt-3">
+        No transaction. You only sign a message to create a session token.
+      </div>
+    </div>
+  ) : (
+    <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3">
+      {/* rows wrapper: same rhythm as Active Pool */}
+      <div className="space-y-3">
+        {/* POWER */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-zinc-500 text-xs uppercase tracking-wide">Power</span>
+          <span className="font-extrabold tabular-nums text-sm text-zinc-100">
+            {effectivePower}
+          </span>
+        </div>
+
+        {/* EST NEXT PAYOUT */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-zinc-500 text-xs uppercase tracking-wide">Est. next payout</span>
+          <span className="font-extrabold tabular-nums text-sm text-cyan-300">
+            {estNextNano === null ? "—" : fmtCredits8FromNano(estNextNano)}{" "}
+            <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+          </span>
+        </div>
+
+        {/* CLAIMABLE */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-zinc-500 text-xs uppercase tracking-wide">Claimable</span>
+
+          {/* fixed width to avoid layout shift */}
+          <span
+            className="font-extrabold tabular-nums text-sm text-cyan-300"
+            style={{ minWidth: 190, textAlign: "right" }}
+          >
+            <span style={{ opacity: rewardsV2Loading ? 0.35 : 1 }}>
+              {rewardsV2Loading ? "0000.00000000" : fmtCredits8FromNano(v2ClaimableNano)}
+            </span>{" "}
+            <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+          </span>
+        </div>
+
+        {/* TODAY CAP (always present) */}
+        {(() => {
+          const hasDaily = !!rewardsV2?.daily;
+          const remainingNano = Number(rewardsV2?.daily?.remainingNano || "0");
+          const isZero = hasDaily && remainingNano <= 0;
+
+          return (
+            <div className="text-[12px] leading-4 tabular-nums" style={{ minHeight: 16 }}>
+              <span className="text-zinc-500">Today cap remaining: </span>
+              <span
+                className={isZero ? "text-red-400 font-semibold" : "text-zinc-200"}
+                style={{ opacity: hasDaily && !rewardsV2Loading ? 1 : 0.35 }}
+              >
+                {hasDaily && !rewardsV2Loading ? fmtCredits8FromNano(remainingNano) : "0000.00000000"}{" "}
+                <span className="text-zinc-500 text-[11px] font-semibold">{husdSymbol}</span>
+              </span>
+            </div>
+          );
+        })()}
+
+        {/* MIN PAYOUT (space preserved; shows only when needed) */}
+        {(() => {
+          const show = !rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2;
+          return (
+            <div className="text-[12px] leading-4" style={{ minHeight: 16, opacity: show ? 1 : 0 }}>
+              <span className="text-zinc-500">Minimum payout: </span>
+              <span className="text-orange-300 tabular-nums font-semibold">
+                {fmtCredits2FromNano(v2MinPayoutNano)}{" "}
+                <span className="text-zinc-500 text-[11px] font-semibold">{husdSymbol}</span>
+              </span>
+              <span className="text-zinc-500"> • Missing: </span>
+              <span className="text-orange-300 tabular-nums font-semibold">
+                {fmtCredits8FromNano(v2MissingNano)}{" "}
+                <span className="text-zinc-500 text-[11px] font-semibold">{husdSymbol}</span>
+              </span>
+            </div>
+          );
+        })()}
+
+        {/* VAULT */}
+        <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-3">
+          <span className="text-zinc-500 text-xs uppercase tracking-wide">Vault</span>
+          <span className="font-extrabold tabular-nums text-sm text-zinc-100">
+            {fmtCredits2FromNano(husdNano)}{" "}
+            <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* ACTIONS */}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={() => token && fetchMe(token)}
+          disabled={busy}
+          className="py-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-sm font-semibold disabled:opacity-50"
+        >
+          Sync
+        </button>
+
+        <button
+          onClick={claimRewardsV2}
+          disabled={busy || !canClaimV2}
+          className={[
+            "py-3 rounded-xl border text-sm font-extrabold",
+            canClaimV2
+              ? "bg-cyan-400 text-black border-cyan-400"
+              : "bg-cyan-400/10 text-cyan-200 border-cyan-400/20",
+            "disabled:opacity-100 disabled:cursor-not-allowed",
+          ].join(" ")}
+        >
+          Claim
+        </button>
+      </div>
+
+      <button
+        onClick={logout}
+        className="mt-2 w-full py-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-sm font-semibold"
+      >
+        Logout
+      </button>
+
+      <div className="text-zinc-500 text-xs mt-3">
+        Claim adds to Vault HUSD (beta). Marketplace + Vault require login.
+      </div>
+    </div>
+  )}
+</div>
+
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           <div className="font-bold">How it works</div>
