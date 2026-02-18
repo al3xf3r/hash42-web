@@ -2138,22 +2138,22 @@ const estNextNano =
   );
 })()}
 
-{/* MINIMUM PAYOUT (2 rows layout) */}
+{/* MINIMUM / PAYOUT (compact 2-line block, no gap) */}
 {(() => {
   const show = !rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2;
 
   return (
-    <>
+    <div
+      className="flex flex-col"
+      style={{ opacity: show ? 1 : 0 }}
+    >
       {/* Row 1 */}
-      <div
-        className="grid grid-cols-[1fr_auto] items-center gap-3"
-        style={{ opacity: show ? 1 : 0 }}
-      >
-        <span className="text-zinc-500 text-xs uppercase tracking-wide">
+      <div className="grid grid-cols-[1fr_auto] items-center">
+        <span className="text-zinc-500 text-xs uppercase tracking-wide leading-none">
           Minimum
         </span>
 
-        <span className="text-sm font-extrabold text-orange-300 tabular-nums text-right">
+        <span className="text-sm font-extrabold text-orange-300 tabular-nums text-right leading-none">
           {fmtCredits2FromNano(v2MinPayoutNano)}{" "}
           <span className="text-zinc-500 text-xs font-semibold">
             {husdSymbol}
@@ -2162,15 +2162,12 @@ const estNextNano =
       </div>
 
       {/* Row 2 */}
-      <div
-        className="grid grid-cols-[1fr_auto] items-center gap-3"
-        style={{ opacity: show ? 1 : 0 }}
-      >
-        <span className="text-zinc-500 text-xs uppercase tracking-wide">
+      <div className="grid grid-cols-[1fr_auto] items-center -mt-0.5">
+        <span className="text-zinc-500 text-xs uppercase tracking-wide leading-none">
           Payout
         </span>
 
-        <span className="text-sm font-semibold text-orange-300 tabular-nums text-right">
+        <span className="text-sm font-semibold text-orange-300 tabular-nums text-right leading-none">
           <span className="text-zinc-500 text-xs font-semibold">
             Missing
           </span>{" "}
@@ -2180,7 +2177,7 @@ const estNextNano =
           </span>
         </span>
       </div>
-    </>
+    </div>
   );
 })()}
 
