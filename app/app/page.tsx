@@ -2138,33 +2138,45 @@ const estNextNano =
   );
 })()}
 
-{/* MIN PAYOUT (single line, no wrap, same table row style) */}
+{/* MINIMUM / PAYOUT (two aligned rows) */}
 {(() => {
   const show = !rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2;
 
   return (
     <div
-      className="grid grid-cols-[1fr_auto] items-center gap-3"
+      className="space-y-1"
       style={{ opacity: show ? 1 : 0, pointerEvents: show ? "auto" : "none" }}
     >
-      <span className="text-zinc-500 text-xs uppercase tracking-wide">
-        Minimum payout
-      </span>
+      {/* MINIMUM */}
+      <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+        <span className="text-zinc-500 text-xs uppercase tracking-wide">
+          Minimum
+        </span>
 
-      <span
-        className="text-sm font-semibold text-orange-300 tabular-nums text-right whitespace-nowrap"
-        style={{ minWidth: 190 }}
-      >
-        {fmtCredits2FromNano(v2MinPayoutNano)}{" "}
-        <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+        <span className="text-sm font-semibold text-orange-300 tabular-nums text-right whitespace-nowrap">
+          {fmtCredits2FromNano(v2MinPayoutNano)}{" "}
+          <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+        </span>
+      </div>
+
+      {/* PAYOUT (Missing) */}
+      <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+        <span className="text-zinc-500 text-xs uppercase tracking-wide">
+          Payout
+        </span>
+
+        <span className="text-sm font-semibold text-orange-300 tabular-nums text-right whitespace-nowrap">
+          {fmtCredits8FromNano(v2MissingNano)}{" "}
+          <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
         <span className="text-zinc-500"> • </span>
         <span className="text-zinc-500 text-xs font-semibold">Missing</span>{" "}
-        {fmtCredits8FromNano(v2MissingNano)}{" "}
-        <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
-      </span>
+          
+        </span>
+      </div>
     </div>
   );
 })()}
+
 
 
         {/* VAULT */}
