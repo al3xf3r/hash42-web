@@ -2110,44 +2110,62 @@ const estNextNano =
           </span>
         </div>
 
-        {/* TODAY CAP (always present) */}
-        {(() => {
-          const hasDaily = !!rewardsV2?.daily;
-          const remainingNano = Number(rewardsV2?.daily?.remainingNano || "0");
-          const isZero = hasDaily && remainingNano <= 0;
+        {/* TODAY CAP (table row, right-aligned) */}
+{(() => {
+  const hasDaily = !!rewardsV2?.daily;
+  const remainingNano = Number(rewardsV2?.daily?.remainingNano || "0");
+  const isZero = hasDaily && remainingNano <= 0;
 
-          return (
-            <div className="text-[12px] leading-4 tabular-nums" style={{ minHeight: 16 }}>
-              <span className="text-zinc-500">Today cap remaining: </span>
-              <span
-                className={isZero ? "text-red-400 font-semibold" : "text-zinc-200"}
-                style={{ opacity: hasDaily && !rewardsV2Loading ? 1 : 0.35 }}
-              >
-                {hasDaily && !rewardsV2Loading ? fmtCredits8FromNano(remainingNano) : "0000.00000000"}{" "}
-                <span className="text-zinc-500 text-[11px] font-semibold">{husdSymbol}</span>
-              </span>
-            </div>
-          );
-        })()}
+  return (
+    <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+      <span className="text-zinc-500 text-xs uppercase tracking-wide">
+        Today cap remaining
+      </span>
 
-        {/* MIN PAYOUT (space preserved; shows only when needed) */}
-        {(() => {
-          const show = !rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2;
-          return (
-            <div className="text-[12px] leading-4" style={{ minHeight: 16, opacity: show ? 1 : 0 }}>
-              <span className="text-zinc-500">Minimum payout: </span>
-              <span className="text-orange-300 tabular-nums font-semibold">
-                {fmtCredits2FromNano(v2MinPayoutNano)}{" "}
-                <span className="text-zinc-500 text-[11px] font-semibold">{husdSymbol}</span>
-              </span>
-              <span className="text-zinc-500"> • Missing: </span>
-              <span className="text-orange-300 tabular-nums font-semibold">
-                {fmtCredits8FromNano(v2MissingNano)}{" "}
-                <span className="text-zinc-500 text-[11px] font-semibold">{husdSymbol}</span>
-              </span>
-            </div>
-          );
-        })()}
+      <span
+        className={[
+          "tabular-nums text-sm font-extrabold text-right",
+          isZero ? "text-red-400" : "text-zinc-200",
+        ].join(" ")}
+        style={{ minWidth: 190 }}
+      >
+        <span style={{ opacity: hasDaily && !rewardsV2Loading ? 1 : 0.35 }}>
+          {hasDaily && !rewardsV2Loading ? fmtCredits8FromNano(remainingNano) : "0000.00000000"}
+        </span>{" "}
+        <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+      </span>
+    </div>
+  );
+})()}
+
+{/* MIN PAYOUT (single line, no wrap, same table row style) */}
+{(() => {
+  const show = !rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2;
+
+  return (
+    <div
+      className="grid grid-cols-[1fr_auto] items-center gap-3"
+      style={{ opacity: show ? 1 : 0, pointerEvents: show ? "auto" : "none" }}
+    >
+      <span className="text-zinc-500 text-xs uppercase tracking-wide">
+        Minimum payout
+      </span>
+
+      <span
+        className="text-sm font-semibold text-orange-300 tabular-nums text-right whitespace-nowrap"
+        style={{ minWidth: 190 }}
+      >
+        {fmtCredits2FromNano(v2MinPayoutNano)}{" "}
+        <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+        <span className="text-zinc-500"> • </span>
+        <span className="text-zinc-500 text-xs font-semibold">Missing</span>{" "}
+        {fmtCredits8FromNano(v2MissingNano)}{" "}
+        <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+      </span>
+    </div>
+  );
+})()}
+
 
         {/* VAULT */}
         <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-3">
