@@ -2167,10 +2167,11 @@ const estNextNano =
 
         <span className="text-sm font-semibold text-orange-300 tabular-nums text-right whitespace-nowrap">
           {fmtCredits8FromNano(v2MissingNano)}{" "}
-          <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
-        <span className="text-zinc-500"> • </span>
+         
+        
         <span className="text-zinc-500 text-xs font-semibold">Missing</span>{" "}
-          
+          <span className="text-zinc-500"> • </span>
+           <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
         </span>
       </div>
     </div>
