@@ -2140,11 +2140,15 @@ const estNextNano =
 
 {/* MINIMUM / PAYOUT (always visible; compact) */}
 {(() => {
-  const minText = rewardsV2Loading ? "—" : `${fmtCredits2FromNano(v2MinPayoutNano)} ${husdSymbol}`;
-  const missingText = rewardsV2Loading ? "—" : `${fmtCredits8FromNano(v2MissingNano)} ${husdSymbol}`;
+  const isLoading = rewardsV2Loading;
+
+  const minText = isLoading ? "—" : `${fmtCredits2FromNano(v2MinPayoutNano)} ${husdSymbol}`;
+
+  const missingNano = Number(v2MissingNano || 0);
+  const isZero = missingNano === 0;
 
   return (
-    <div className="flex flex-col" style={{ opacity: rewardsV2Loading ? 0.35 : 1 }}>
+    <div className="flex flex-col" style={{ opacity: isLoading ? 0.35 : 1 }}>
       <div className="grid grid-cols-[1fr_auto] items-center">
         <span className="text-zinc-500 text-xs uppercase tracking-wide leading-none">
           Minimum
@@ -2159,29 +2163,22 @@ const estNextNano =
           Payout
         </span>
 
-
-        
-        {(() => {
-    const missingNano = Number(v2MissingNano || 0);
-    const isZero = missingNano === 0;
-
-    return (
-      <span
-        className={[
-          "text-sm font-semibold tabular-nums text-right leading-none",
-          isZero ? "text-emerald-400" : "text-red-400",
-        ].join(" ")}
-      >
-        <span className="text-zinc-500 text-xs font-semibold">
-          Missing
-        </span>{" "}
-        {fmtCredits8FromNano(missingNano)}{" "}
-        <span className="text-zinc-500 text-xs font-semibold">
-          {husdSymbol}
-        </span>
-      </span>
-    );
-})()}
+        {isLoading ? (
+          <span className="text-sm font-semibold tabular-nums text-right leading-none text-zinc-500">
+            —
+          </span>
+        ) : (
+          <span
+            className={[
+              "text-sm font-semibold tabular-nums text-right leading-none",
+              isZero ? "text-emerald-400" : "text-red-400",
+            ].join(" ")}
+          >
+            <span className="text-zinc-500 text-xs font-semibold">Missing</span>{" "}
+            {fmtCredits8FromNano(missingNano)}{" "}
+            <span className="text-zinc-500 text-xs font-semibold">{husdSymbol}</span>
+          </span>
+        )}
       </div>
     </div>
   );
