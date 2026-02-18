@@ -1230,16 +1230,20 @@ if (!r2.ok) throw new Error(v?.error || `verify_failed_${r2.status}`);
   }
 
   async function fetchProtocolStatus() {
-    setProtocolLoading(true);
-    try {
-      const r = await fetch(`${API}/protocol/status`);
-      const j = (await r.json().catch(() => null)) as ProtocolStatusResponse | null;
-      if (!r.ok || !j?.ok) return;
-      setProtocolStatus(j);
-    } finally {
-      setProtocolLoading(false);
-    }
+  const firstLoad = !protocolStatus; // solo se non abbiamo dati ancora
+  if (firstLoad) setProtocolLoading(true);
+
+  try {
+    const r = await fetch(`${API}/protocol/status`);
+    const j = (await r.json().catch(() => null)) as ProtocolStatusResponse | null;
+    if (!r.ok || !j?.ok) return;
+
+    setProtocolStatus(j);
+  } finally {
+    if (firstLoad) setProtocolLoading(false);
   }
+}
+
 
   async function fetchMe(t: string) {
     const r = await fetch(`${API}/me`, { headers: { Authorization: `Bearer ${t}` } });
@@ -1286,10 +1290,20 @@ if (j && j.starterRtxGifted === false) {
       if (!r.ok || !j?.ok) throw new Error(j.error || `v2_claim_failed_${r.status}`);
 
       const paid = Number(j?.paidNano || "0");
+      const partial = j?.partial === true;
+const after = Number(j?.claimableAfterNano || "0");
+const reason = String(j?.reason || "");
+
 
 if (paid > 0) {
-  setToast(`Claimed: +${fmtCredits8FromNano(paid)} ${husdSymbol}`);
-} else if (j?.reason === "below_min_payout") {
+  if (partial) {
+    setToast(
+      `Partial claim (daily cap). Paid +${fmtCredits8FromNano(paid)} ${husdSymbol}. Remaining claimable ${fmtCredits8FromNano(after)} ${husdSymbol}.`
+    );
+  } else {
+    setToast(`Claimed: +${fmtCredits8FromNano(paid)} ${husdSymbol}`);
+  }
+} else if (reason === "below_min_payout") {
   const minNano = Number(j?.minPayoutNano || rewardsV2?.minPayoutNano || "0");
   const missNano = Number(j?.missingToMinNano || rewardsV2?.missingToMinNano || "0");
   setToast(
@@ -1298,6 +1312,7 @@ if (paid > 0) {
 } else {
   setToast("Nothing to claim");
 }
+
 
       await fetchMe(token);
       await fetchRewardsV2(token);
