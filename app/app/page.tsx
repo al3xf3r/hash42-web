@@ -461,6 +461,11 @@ slotRefs: RefObject<(HTMLButtonElement | null)[]>;
     });
   }, [rig, slotsUnlocked, loggedIn]);
 
+const connectedKey = useMemo(
+  () => connected.map((x) => (x ? "1" : "0")).join(""),
+  [connected]
+);
+
   const anyOn = connected.some(Boolean);
   const activeCount = connected.filter(Boolean).length;
 
@@ -697,8 +702,7 @@ slotRefs: RefObject<(HTMLButtonElement | null)[]>;
       ro.disconnect();
       ro2.disconnect();
     };
- }, [anyOn]);
-
+}, [anyOn, activeCount, connected, ports]);
 
   return (
     <div
