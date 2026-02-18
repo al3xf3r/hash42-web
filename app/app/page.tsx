@@ -183,6 +183,25 @@ function rarityColor(r: string) {
   return "text-green-300";
 }
 
+function rarityHex(r?: string) {
+  const x = (r || "").toLowerCase();
+  if (x === "legendary") return "#22d3ee"; // cyan
+  if (x === "epic") return "#fb923c";      // orange
+  if (x === "rare") return "#facc15";      // yellow
+  if (x === "uncommon") return "#60a5fa";  // blue
+  return "#34d399";                        // green (common)
+}
+
+function withAlpha(hex: string, a: number) {
+  // hex "#RRGGBB" -> "rgba(r,g,b,a)"
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+
 function clampSlots(n: number) {
   return Math.max(1, Math.min(5, Number.isFinite(n) ? n : 1));
 }
@@ -464,6 +483,14 @@ slotRefs: RefObject<(HTMLButtonElement | null)[]>;
   const anyOn = connected.some(Boolean);
   const activeCount = connected.filter(Boolean).length;
 
+  const slotColors = useMemo(() => {
+  return Array.from({ length: 5 }).map((_, i) => {
+    const g = rig[i];
+    return rarityHex(g?.rarity);
+  });
+}, [rig]);
+
+
   
 
   // dynamic ports (from DOM slot buttons)
@@ -623,20 +650,23 @@ slotRefs: RefObject<(HTMLButtonElement | null)[]>;
       if (particles.length > 320) particles = particles.slice(particles.length - 320);
     };
 
-    const drawGlowDot = (x: number, y: number, rr: number, a: number) => {
+    const drawGlowDot = (x: number, y: number, rr: number, a: number, color: string) => {
+
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
 
       const g = ctx.createRadialGradient(x, y, 0, x, y, rr * 8);
-      g.addColorStop(0, `rgba(34,211,238,${0.60 * a})`);
-      g.addColorStop(0.35, `rgba(34,211,238,${0.20 * a})`);
-      g.addColorStop(1, `rgba(34,211,238,0)`);
+g.addColorStop(0, withAlpha(color, 0.60 * a));
+g.addColorStop(0.35, withAlpha(color, 0.20 * a));
+g.addColorStop(1, withAlpha(color, 0));
+
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(x, y, rr * 8, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = `rgba(210, 255, 255, ${0.85 * a})`;
+      ctx.fillStyle = withAlpha(color, 0.90 * a);
+
       ctx.beginPath();
       ctx.arc(x, y, rr, 0, Math.PI * 2);
       ctx.fill();
@@ -676,10 +706,19 @@ slotRefs: RefObject<(HTMLButtonElement | null)[]>;
           const pt = c.pts[idx];
           if (!pt) return false;
 
-          drawGlowDot(pt.x, pt.y, p.size, p.alpha);
+          const color = slotColors[p.cable] || "#22d3ee";
+drawGlowDot(pt.x, pt.y, p.size, p.alpha, color);
+
 
           if (Math.random() < 0.03) {
-            drawGlowDot(pt.x + (Math.random() - 0.5) * 10, pt.y + (Math.random() - 0.5) * 10, 0.9, 0.55);
+            drawGlowDot(
+  pt.x + (Math.random() - 0.5) * 10,
+  pt.y + (Math.random() - 0.5) * 10,
+  0.9,
+  0.55,
+  color
+);
+
           }
           return true;
         });
@@ -697,7 +736,8 @@ slotRefs: RefObject<(HTMLButtonElement | null)[]>;
       ro.disconnect();
       ro2.disconnect();
     };
- }, [anyOn]);
+}, [anyOn, activeCount, connected, ports, slotColors]);
+
 
 
   return (
@@ -785,35 +825,50 @@ slotRefs: RefObject<(HTMLButtonElement | null)[]>;
 
           {/* CAVI: partono dagli slot (nessun header in mezzo) */}
           {Array.from({ length: 5 }).map((_, i) => {
-            const on = connected[i];
-            const wrap = wrapRef.current?.getBoundingClientRect();
-            const w = wrap?.width || 1;
-            const h = wrap?.height || 1;
-            const d = pathFor(i, w, h);
+  const on = connected[i];
+  const wrap = wrapRef.current?.getBoundingClientRect();
+  const w = wrap?.width || 1;
+  const h = wrap?.height || 1;
+  const d = pathFor(i, w, h);
 
-            return (
-              <g key={`cable-${i}`} opacity={on ? 1 : 0.45}>
-                <path d={d} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth={10} strokeLinecap="round" opacity={0.55} />
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={on ? "rgba(34,211,238,0.22)" : "rgba(255,255,255,0.09)"}
-                  strokeWidth={7}
-                  strokeLinecap="round"
-                  opacity={on ? 0.95 : 0.55}
-                />
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={on ? "url(#cableLive)" : "url(#cableDim)"}
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                  filter={on ? "url(#glowSoft)" : undefined}
-                  style={{ animation: on ? "cableGlow 1.0s ease-in-out infinite" : "none" }}
-                />
-              </g>
-            );
-          })}
+  const base = slotColors[i]; // HEX
+  const dim = "rgba(255,255,255,0.10)";
+
+  return (
+    <g key={`cable-${i}`} opacity={on ? 1 : 0.45}>
+      {/* shadow */}
+      <path
+        d={d}
+        fill="none"
+        stroke="rgba(0,0,0,0.55)"
+        strokeWidth={10}
+        strokeLinecap="round"
+        opacity={0.55}
+      />
+
+      {/* fat cable */}
+      <path
+        d={d}
+        fill="none"
+        stroke={on ? withAlpha(base, 0.22) : dim}
+        strokeWidth={7}
+        strokeLinecap="round"
+        opacity={on ? 0.95 : 0.55}
+      />
+
+      {/* live glow line */}
+      <path
+        d={d}
+        fill="none"
+        stroke={on ? withAlpha(base, 0.95) : "rgba(255,255,255,0.14)"}
+        strokeWidth={3}
+        strokeLinecap="round"
+        filter={on ? "url(#glowSoft)" : undefined}
+        style={{ animation: on ? "cableGlow 1.0s ease-in-out infinite" : "none" }}
+      />
+    </g>
+  );
+})}
 
           {/* MAINFRAME CLUSTER (senza “palla blu”) */}
           {(() => {
