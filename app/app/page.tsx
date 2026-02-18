@@ -1252,7 +1252,12 @@ if (!r2.ok) throw new Error(v?.error || `verify_failed_${r2.status}`);
     const j = (await r.json().catch(() => null)) as ProtocolStatusResponse | null;
     if (!r.ok || !j?.ok) return;
 
-    setProtocolStatus(j);
+    setProtocolStatus((prev) => {
+  if (!prev) return j;
+  // evita re-render se il payload è identico
+  return JSON.stringify(prev) === JSON.stringify(j) ? prev : j;
+});
+
   } finally {
     if (firstLoad) setProtocolFirstLoading(false);
 
