@@ -965,6 +965,7 @@ const fmtMHs = (v: number | string) => {
 
 
 export default function Page() {
+  
   const [tab, setTab] = useState<TabKey>("protocol");
 
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
@@ -1004,7 +1005,10 @@ const [starterStep, setStarterStep] = useState(0);
   const [rewardsV2Loading, setRewardsV2Loading] = useState(false);
 
   const [protocolStatus, setProtocolStatus] = useState<ProtocolStatusResponse | null>(null);
-  const [protocolLoading, setProtocolLoading] = useState(false);
+  const [protocolFirstLoading, setProtocolFirstLoading] = useState(false);
+const [protocolRefreshing, setProtocolRefreshing] = useState(false);
+const refreshTimerRef = useRef<number | null>(null);
+
 
   // ---- Rig (client-side for now) ----
   const [rig, setRig] = useState<(InventoryItem | null)[]>([null, null, null, null, null]);
@@ -1230,8 +1234,18 @@ if (!r2.ok) throw new Error(v?.error || `verify_failed_${r2.status}`);
   }
 
   async function fetchProtocolStatus() {
-  const firstLoad = !protocolStatus; // solo se non abbiamo dati ancora
-  if (firstLoad) setProtocolLoading(true);
+  const firstLoad = !protocolStatus;
+
+  // ✅ primo load = skeleton/...
+  if (firstLoad) setProtocolFirstLoading(true);
+
+  // ✅ refresh = mostra "updating..." SOLO se dura abbastanza
+  if (!firstLoad) {
+    if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = window.setTimeout(() => {
+      setProtocolRefreshing(true);
+    }, 400); // <--- soglia anti-lag
+  }
 
   try {
     const r = await fetch(`${API}/protocol/status`);
@@ -1240,9 +1254,16 @@ if (!r2.ok) throw new Error(v?.error || `verify_failed_${r2.status}`);
 
     setProtocolStatus(j);
   } finally {
-    if (firstLoad) setProtocolLoading(false);
+    if (firstLoad) setProtocolFirstLoading(false);
+
+    if (!firstLoad) {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+      setProtocolRefreshing(false);
+    }
   }
 }
+
 
 
   async function fetchMe(t: string) {
@@ -1789,9 +1810,10 @@ const estNextNano =
               <div className="text-zinc-400 text-xs">Hash42 Protocol</div>
               <div className="mt-1 text-2xl font-extrabold tracking-tight">
   Active Pool{" "}
-  <span className={`text-xs text-zinc-500 ${protocolLoading ? "" : "invisible"}`}>
-    updating…
-  </span>
+  <span className={`text-xs text-zinc-500 ${protocolRefreshing ? "" : "invisible"}`}>
+  updating…
+</span>
+
 </div>
 
 
@@ -1818,7 +1840,7 @@ const estNextNano =
         LIVE
       </div>
       <div className="font-extrabold text-cyan-500">
-        {protocolLoading ? "..." : totalNetworkPower}{" "} MH/s
+        {protocolFirstLoading ? "..." : totalNetworkPower}{" "} MH/s
       </div>
     </div>
   </div>
@@ -2491,11 +2513,28 @@ const networkPowerPercent = Math.min(
         </div>
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-          <div className="text-zinc-400 text-xs">V2 Claimable</div>
+          <div className="text-zinc-400 text-xs">Claimable</div>
           <div className="mt-1 text-2xl font-extrabold">
-            {rewardsV2Loading ? "..." : fmtCredits8FromNano(v2ClaimableNano)}{" "}
-            <span className="text-zinc-400 text-sm font-semibold">{husdSymbol}</span>
-          </div>
+  {fmtCredits8FromNano(v2ClaimableNano)}{" "}
+  <span className="text-zinc-400 text-sm font-semibold">{husdSymbol}</span>
+</div>
+
+
+          {rewardsV2?.daily && (() => {
+  const remainingNano = Number(rewardsV2.daily.remainingNano || "0");
+  const isZero = remainingNano <= 0;
+
+  return (
+    <div className="text-xs mt-1">
+      <span className="text-zinc-500">Today cap remaining: </span>
+      <span className={isZero ? "text-red-400 font-semibold" : "text-zinc-300"}>
+        {fmtCredits8FromNano(remainingNano)}
+      </span>
+    </div>
+  );
+})()}
+
+
 
           <div className="mt-3 flex gap-2">
             <button
@@ -2641,10 +2680,10 @@ const networkPowerPercent = Math.min(
   <button
     onClick={() => fetchProtocolStatus().catch(() => {})}
     className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
-    disabled={busy || protocolLoading}
+    disabled={busy || protocolFirstLoading}
     title="Refresh public protocol status"
   >
-    {protocolLoading ? "..." : "Refresh"}
+    {protocolRefreshing ? "..." : "Refresh"}
   </button>
 </div>
         </div>
