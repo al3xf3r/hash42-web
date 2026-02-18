@@ -1048,13 +1048,27 @@ const [starterStep, setStarterStep] = useState(0);
   };
 }, [showStarterRtx]);
 
-  useEffect(() => {
-    if (tab === "protocol") {
-      fetchProtocolStatus().catch(() => {});
-      const t = setInterval(() => fetchProtocolStatus().catch(() => {}), 20000);
-      return () => clearInterval(t);
-    }
-  }, [tab]);
+ useEffect(() => {
+  if (tab !== "protocol") return;
+
+  let stopped = false;
+
+  const run = async () => {
+    if (stopped) return;
+    // evita refresh se la tab del browser non è attiva (riduce jank)
+    if (document.visibilityState !== "visible") return;
+    await fetchProtocolStatus().catch(() => {});
+  };
+
+  run(); // primo fetch subito
+
+  const t = window.setInterval(run, 60_000); // ✅ 1 minuto
+  return () => {
+    stopped = true;
+    window.clearInterval(t);
+  };
+}, [tab]);
+
 
   useEffect(() => {
   if (tab === "leaderboard") {
