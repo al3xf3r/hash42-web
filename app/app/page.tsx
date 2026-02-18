@@ -697,7 +697,8 @@ slotRefs: RefObject<(HTMLButtonElement | null)[]>;
       ro.disconnect();
       ro2.disconnect();
     };
-  }, [anyOn, activeCount, connected, ports, wrapRef, CORE]);
+ }, [anyOn]);
+
 
   return (
     <div
@@ -1844,7 +1845,7 @@ const estNextNano =
 
     {/* shine (transform only, cheap) */}
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="h-full w-1/3 bg-white/25 blur-sm animate-[shine_1.8s_linear_infinite]" />
+      <div className="h-full w-1/3 bg-white/25 animate-[shine_1.8s_linear_infinite]" />
     </div>
   </div>
 
