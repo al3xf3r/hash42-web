@@ -2158,10 +2158,30 @@ const estNextNano =
         <span className="text-zinc-500 text-xs uppercase tracking-wide leading-none">
           Payout
         </span>
-        <span className="text-sm font-semibold text-orange-300 tabular-nums text-right leading-none">
-          <span className="text-zinc-500 text-xs font-semibold">Missing</span>{" "}
-          {missingText}
+
+
+        
+        {(() => {
+    const missingNano = Number(v2MissingNano || 0);
+    const isZero = missingNano === 0;
+
+    return (
+      <span
+        className={[
+          "text-sm font-semibold tabular-nums text-right leading-none",
+          isZero ? "text-emerald-400" : "text-red-400",
+        ].join(" ")}
+      >
+        <span className="text-zinc-500 text-xs font-semibold">
+          Missing
+        </span>{" "}
+        {fmtCredits8FromNano(missingNano)}{" "}
+        <span className="text-zinc-500 text-xs font-semibold">
+          {husdSymbol}
         </span>
+      </span>
+    );
+})()}
       </div>
     </div>
   );
