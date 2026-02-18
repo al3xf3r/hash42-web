@@ -1808,25 +1808,28 @@ const estNextNano =
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-zinc-400 text-xs">Hash42 Protocol</div>
-              <div className="mt-1 text-2xl font-extrabold tracking-tight">
-  Active Pool{" "}
-  <span className={`text-xs text-zinc-500 ${protocolRefreshing ? "" : "invisible"}`}>
-  updating…
-</span>
+              <div className="mt-1 flex items-baseline gap-2 whitespace-nowrap">
+  <div className="text-2xl font-extrabold tracking-tight">Active Pool</div>
 
+  {/* placeholder SEMPRE presente -> zero shift */}
+  <span
+    className="text-xs text-zinc-500 transition-opacity"
+    style={{ opacity: protocolRefreshing ? 1 : 0 }}
+  >
+    updating…
+  </span>
 </div>
 
+<div className="text-zinc-500 text-xs mt-1 whitespace-nowrap">
+  Updated: {protocolStatus?.serverNow ? fmtWhen(protocolStatus.serverNow) : "—"}
+</div>
 
-              <div className="text-zinc-500 text-xs mt-1">
-                Updated: {protocolStatus?.serverNow ? fmtWhen(protocolStatus.serverNow) : "—"}
-              </div>
             </div>
 
-            <div className="flex flex-col items-end gap-2 min-w-[180px]">
-  <div className="mb-3">
-    <NextDistributionCountdown serverNowISO={protocolStatus?.serverNow} />
-  </div>
+            <div className="flex flex-col items-end min-w-[180px]">
+  <NextDistributionCountdown serverNowISO={protocolStatus?.serverNow} />
 </div>
+
 
           </div>
 <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
@@ -2076,6 +2079,20 @@ const estNextNano =
                   {rewardsV2Loading ? "..." : fmtCredits8FromNano(v2ClaimableNano)} {husdSymbol}
                 </span>
               </div>
+              {rewardsV2?.daily && (() => {
+  const remainingNano = Number(rewardsV2.daily.remainingNano || "0");
+  const isZero = remainingNano <= 0;
+
+  return (
+    <div className="text-[11px] mt-1">
+      <span className="text-zinc-500">Today cap remaining: </span>
+      <span className={isZero ? "text-red-400 font-semibold" : "text-zinc-300"}>
+        {fmtCredits8FromNano(remainingNano)} {husdSymbol}
+      </span>
+    </div>
+  );
+})()}
+
 {!rewardsV2Loading && v2ClaimableNano > 0 && !canClaimV2 && (
   <div className="text-[11px] text-orange-300/90">
     Minimum payout: {fmtCredits2FromNano(v2MinPayoutNano)} {husdSymbol}. Missing:{" "}
@@ -2678,13 +2695,14 @@ const networkPowerPercent = Math.min(
   </button>
 
   <button
-    onClick={() => fetchProtocolStatus().catch(() => {})}
-    className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
-    disabled={busy || protocolFirstLoading}
-    title="Refresh public protocol status"
-  >
-    {protocolRefreshing ? "..." : "Refresh"}
-  </button>
+  onClick={() => fetchProtocolStatus().catch(() => {})}
+  className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
+  disabled={busy || protocolFirstLoading || protocolRefreshing}
+  title="Refresh public protocol status"
+>
+  {protocolRefreshing ? "..." : "Refresh"}
+</button>
+
 </div>
         </div>
 
