@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+
 import { BrowserProvider } from "ethers";
 
 const API = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
@@ -1006,8 +1007,7 @@ const [starterStep, setStarterStep] = useState(0);
 
   const [protocolStatus, setProtocolStatus] = useState<ProtocolStatusResponse | null>(null);
   const [protocolFirstLoading, setProtocolFirstLoading] = useState(false);
-const [protocolRefreshing, setProtocolRefreshing] = useState(false);
-const refreshTimerRef = useRef<number | null>(null);
+
 
 
   // ---- Rig (client-side for now) ----
@@ -1236,38 +1236,19 @@ if (!r2.ok) throw new Error(v?.error || `verify_failed_${r2.status}`);
   async function fetchProtocolStatus() {
   const firstLoad = !protocolStatus;
 
-  // ✅ primo load = skeleton/...
   if (firstLoad) setProtocolFirstLoading(true);
 
-  // ✅ refresh = mostra "updating..." SOLO se dura abbastanza
-  if (!firstLoad) {
-    if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = window.setTimeout(() => {
-      setProtocolRefreshing(true);
-    }, 400); // <--- soglia anti-lag
-  }
-
   try {
-    const r = await fetch(`${API}/protocol/status`);
+    const r = await fetch(`${API}/protocol/status`, { cache: "no-store" });
     const j = (await r.json().catch(() => null)) as ProtocolStatusResponse | null;
     if (!r.ok || !j?.ok) return;
 
-    setProtocolStatus((prev) => {
-  if (!prev) return j;
-  // evita re-render se il payload è identico
-  return JSON.stringify(prev) === JSON.stringify(j) ? prev : j;
-});
-
+    setProtocolStatus(j);
   } finally {
     if (firstLoad) setProtocolFirstLoading(false);
-
-    if (!firstLoad) {
-      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-      setProtocolRefreshing(false);
-    }
   }
 }
+
 
 
 
@@ -1816,13 +1797,6 @@ const estNextNano =
               <div className="mt-1 flex items-baseline gap-2 whitespace-nowrap">
   <div className="text-2xl font-extrabold tracking-tight">Active Pool</div>
 
-  {/* placeholder SEMPRE presente -> zero shift */}
-  <span
-    className="text-xs text-zinc-500 transition-opacity"
-    style={{ opacity: protocolRefreshing ? 1 : 0 }}
-  >
-    updating…
-  </span>
 </div>
 
 <div className="text-zinc-500 text-xs mt-1 whitespace-nowrap">
@@ -2802,11 +2776,12 @@ const networkPowerPercent = Math.min(
   <button
   onClick={() => fetchProtocolStatus().catch(() => {})}
   className="text-xs px-3 py-2 rounded-lg border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50"
-  disabled={busy || protocolFirstLoading || protocolRefreshing}
+  disabled={busy || protocolFirstLoading}
   title="Refresh public protocol status"
 >
-  {protocolRefreshing ? "..." : "Refresh"}
+  Refresh
 </button>
+
 
 </div>
         </div>
