@@ -1785,11 +1785,12 @@ const estNextNano =
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-2">
-              <div className="mb-3">
-              <NextDistributionCountdown serverNowISO={protocolStatus?.serverNow} />
-              </div>
-            </div>
+            <div className="flex flex-col items-end gap-2 min-w-[180px]">
+  <div className="mb-3">
+    <NextDistributionCountdown serverNowISO={protocolStatus?.serverNow} />
+  </div>
+</div>
+
           </div>
 <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
   <div className="flex items-center justify-between">
