@@ -2150,13 +2150,23 @@ const estNextNano =
   return (
     <div className="flex flex-col" style={{ opacity: isLoading ? 0.35 : 1 }}>
       <div className="grid grid-cols-[1fr_auto] items-center">
-        <span className="text-zinc-500 text-xs uppercase tracking-wide leading-none">
-          Minimum
-        </span>
-        <span className="text-sm font-extrabold text-orange-300 tabular-nums text-right leading-none">
-          {minText}
-        </span>
-      </div>
+  <span className="text-zinc-500 text-xs uppercase tracking-wide leading-none">
+    Minimum
+  </span>
+
+  {isLoading ? (
+    <span className="text-sm text-zinc-400 text-right leading-none">—</span>
+  ) : (
+    <span className="text-right leading-none">
+      <span className="text-sm font-extrabold text-orange-300 tabular-nums">
+        {fmtCredits2FromNano(v2MinPayoutNano)}
+      </span>{" "}
+      <span className="text-zinc-500 text-xs font-semibold">
+        {husdSymbol}
+      </span>
+    </span>
+  )}
+</div>
 
       <div className="grid grid-cols-[1fr_auto] items-center -mt-0.5">
         <span className="text-zinc-500 text-xs uppercase tracking-wide leading-none">
