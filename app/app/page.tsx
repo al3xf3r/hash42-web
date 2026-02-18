@@ -176,7 +176,7 @@ function fmtWhen(iso?: string) {
 
 function rarityColor(r: string) {
   const x = (r || "").toLowerCase();
-  if (x === "legendary") return "text-cyan-200";
+  if (x === "legendary") return "text-white";
   if (x === "epic") return "text-orange-300";
   if (x === "rare") return "text-yellow-300";
   if (x === "uncommon") return "text-blue-300";
@@ -185,7 +185,7 @@ function rarityColor(r: string) {
 
 function rarityHex(r?: string) {
   const x = (r || "").toLowerCase();
-  if (x === "legendary") return "#22d3ee"; // cyan
+  if (x === "legendary") return "#ffffff"; // white
   if (x === "epic") return "#fb923c";      // orange
   if (x === "rare") return "#facc15";      // yellow
   if (x === "uncommon") return "#60a5fa";  // blue
