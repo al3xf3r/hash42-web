@@ -1988,13 +1988,16 @@ const estNextNano =
               </span>
             </div>
             <div className="text-[11px] text-zinc-500">
-  Estimate uses: Daily distribution × (Your Power / Total Power).
-  {Number(protocolStatus?.dailyPayoutUsedNano || "0") > 0
-    ? " Source: today."
-    : Number(protocolStatus?.lastDailyDistributionNano || "0") > 0
-    ? " Source: last distribution."
-    : " Source: —"}
+  Estimate uses:
+{rewardsV2?.estimate?.estNextPayoutNano
+  ? " Live preview (pool-based model)."
+  : Number(protocolStatus?.dailyPayoutUsedNano || "0") > 0
+  ? " Daily distribution (today)."
+  : Number(protocolStatus?.lastDailyDistributionNano || "0") > 0
+  ? " Last daily distribution."
+  : " —"}
 </div>
+
           </div>
         </div>
 
