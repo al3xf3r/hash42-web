@@ -90,18 +90,27 @@ type RewardsV2Response = {
   ok: boolean;
   today: number;
   power: number;
-  claimableNano: string; // bigint as string
+  claimableNano: string;
   canClaim?: boolean;
   minPayoutNano?: string;
   minPayoutCredits?: number;
   missingToMinNano?: string;
+
   daily?: {
     distributedNano?: string;
     usedNano?: string;
     remainingNano?: string;
     day?: number;
   };
+
+  estimate?: {
+    mode?: "live_preview" | string;
+    source?: string;
+    nextDistributionPreviewNano?: string; // bigint string
+    estNextPayoutNano?: string;           // bigint string
+  };
 };
+
 
 type RewardsV2ClaimResponse = {
   ok: boolean;
@@ -1843,7 +1852,7 @@ const effectivePower = rigPower > 0 ? rigPower : Number(me?.powerScore || reward
 
 
 
-    // Estimated next payout (daily-based, NOT available-based)
+ // Estimated next payout
 const totalPower = Number(protocolStatus?.totalPower || "0");
 
 const dailyUsedNano = Number(protocolStatus?.dailyPayoutUsedNano || "0");
@@ -1853,10 +1862,16 @@ const lastDailyNano = Number(protocolStatus?.lastDailyDistributionNano || "0");
 const dailyAmountNano =
   dailyUsedNano > 0 ? dailyUsedNano : lastDailyNano > 0 ? lastDailyNano : null;
 
+// ✅ prefer backend live preview if available
+const estNextFromApi = Number(rewardsV2?.estimate?.estNextPayoutNano || "0");
+
 const estNextNano =
-  dailyAmountNano !== null && totalPower > 0 && effectivePower > 0
-    ? Math.floor((dailyAmountNano * effectivePower) / totalPower)
-    : null;
+  estNextFromApi > 0
+    ? estNextFromApi
+    : (dailyAmountNano !== null && totalPower > 0 && effectivePower > 0
+        ? Math.floor((dailyAmountNano * effectivePower) / totalPower)
+        : null);
+
 
     return (
       <div className="space-y-4">
