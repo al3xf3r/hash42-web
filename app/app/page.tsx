@@ -1635,8 +1635,9 @@ async function apiUnequip(slotIndex0: number) {
     };
 
     return (
-      <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 backdrop-blur z-[9999]">
-        <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 backdrop-blur z-[9999] isolate"></div>
+      <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-black/90 backdrop-blur z-40">
+
+   
         <div className="max-w-md mx-auto flex">
           {item("protocol", "Protocol")}
           {item("marketplace", "Marketplace")}
@@ -3000,7 +3001,7 @@ const networkPowerPercent = Math.min(
         )}
 
         {token && openingPack && (
-          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 pb-[calc(16px+env(safe-area-inset-bottom)+72px)] z-50">
             <div className="w-full max-w-md rounded-2xl border border-orange-500/30 bg-zinc-950 p-4 relative overflow-hidden">
               <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
               <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
@@ -3017,7 +3018,7 @@ const networkPowerPercent = Math.min(
         )}
 
         {token && reveal && (
-          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 pb-[calc(16px+env(safe-area-inset-bottom)+72px)] z-50">
             <div className="w-full max-w-md rounded-2xl border border-orange-500/30 bg-zinc-950 p-4 relative overflow-hidden">
               <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
               <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-orange-500/10 blur-3xl" />
