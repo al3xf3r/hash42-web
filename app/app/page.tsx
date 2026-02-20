@@ -1945,6 +1945,15 @@ const estNextNano =
         ? Math.floor((dailyAmountNano * effectivePower) / totalPower)
         : null);
 
+// payout per 1 MH/s (HUSD per MH/s)
+const payPerMH = useMemo(() => {
+  if (estNextNano === null) return null;
+  if (!effectivePower || effectivePower <= 0) return null;
+
+  const nanoPerMH = Math.floor(estNextNano / effectivePower); // nano for 1 MH/s
+  return nanoPerMH; // in nano
+}, [estNextNano, effectivePower]);
+
 
     return (
       <div className="space-y-4">
@@ -2060,6 +2069,14 @@ const estNextNano =
                 {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${husdSymbol}`}
               </span>
             </div>
+
+<div className="mt-1 text-[11px] text-zinc-500 text-right">
+  {payPerMH === null
+    ? "≈ — HUSD / MH/s"
+    : `≈ ${fmtCredits8FromNano(payPerMH)} ${husdSymbol} / MH/s`}
+</div>
+
+
             <div className="text-[11px] text-zinc-500">
   Estimate uses:
 {rewardsV2?.estimate?.estNextPayoutNano
