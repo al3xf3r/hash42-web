@@ -2091,9 +2091,6 @@ const payoutPerMhNano =
   : " —"}
 </div>
 
-          </div>
-        </div>
-
         {/* Rig */}
 <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
   <div className="flex items-start justify-between gap-3">
