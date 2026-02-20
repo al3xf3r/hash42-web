@@ -1030,6 +1030,41 @@ const fmtMHs = (v: number | string) => {
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 };
 
+async function fetchJsonWithTimeout<T>(url: string, ms = 8000, init?: RequestInit): Promise<{ ok: boolean; status: number; json: T | null }> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ms);
+
+  try {
+    const r = await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });
+    const j = (await r.json().catch(() => null)) as T | null;
+    return { ok: r.ok, status: r.status, json: j };
+  } catch {
+    return { ok: false, status: 0, json: null };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+
+function UpdateBanner({ show, text }: { show: boolean; text?: string | null }) {
+  if (!show) return null;
+  return (
+    <div className="mb-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="w-2.5 h-2.5 rounded-full bg-orange-400 animate-pulse" />
+        <div className="min-w-0">
+          <div className="text-xs font-extrabold text-orange-300 tracking-wide">
+            UPDATE IN PROGRESS
+          </div>
+          <div className="text-sm text-zinc-200">
+            {text || "Backend is restarting. Data will refresh automatically."}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 
 export default function Page() {
@@ -1074,6 +1109,10 @@ const [starterStep, setStarterStep] = useState(0);
 
   const [protocolStatus, setProtocolStatus] = useState<ProtocolStatusResponse | null>(null);
   const [protocolFirstLoading, setProtocolFirstLoading] = useState(false);
+
+  const [apiDegraded, setApiDegraded] = useState(false);
+const [apiDegradedMsg, setApiDegradedMsg] = useState<string | null>(null);
+const lastGoodProtocolRef = useRef<ProtocolStatusResponse | null>(null);
 
 
 
@@ -1314,22 +1353,42 @@ if (!r2.ok) throw new Error(v?.error || `verify_failed_${r2.status}`);
     if (popup) setPopup(null);
   }
 
-  async function fetchProtocolStatus() {
-  const firstLoad = !protocolStatus;
 
+async function fetchProtocolStatus() {
+  const firstLoad = !protocolStatus && !lastGoodProtocolRef.current;
   if (firstLoad) setProtocolFirstLoading(true);
 
-  try {
-    const r = await fetch(`${API}/protocol/status`, { cache: "no-store" });
-    const j = (await r.json().catch(() => null)) as ProtocolStatusResponse | null;
-    if (!r.ok || !j?.ok) return;
+  const { ok, status, json } = await fetchJsonWithTimeout<ProtocolStatusResponse>(`${API}/protocol/status`, 8000);
 
-    setProtocolStatus(j);
-  } finally {
+  // ✅ caso OK
+  if (ok && json?.ok) {
+    lastGoodProtocolRef.current = json;
+    setProtocolStatus(json);
+
+    if (apiDegraded) {
+      setApiDegraded(false);
+      setApiDegradedMsg(null);
+    }
+
     if (firstLoad) setProtocolFirstLoading(false);
+    return;
   }
-}
 
+  // ❌ caso KO: mantieni ultimo dato buono
+  if (lastGoodProtocolRef.current) {
+    setProtocolStatus(lastGoodProtocolRef.current);
+  }
+
+  setApiDegraded(true);
+  const msg =
+    status === 0 ? "Connection lost / server restarting…" :
+    status >= 500 ? "Backend is updating… (server restart)" :
+    status === 401 ? "Unauthorized (session expired?)" :
+    "Update in progress…";
+  setApiDegradedMsg(msg);
+
+  if (firstLoad) setProtocolFirstLoading(false);
+}
 
 
 
@@ -2883,10 +2942,9 @@ const networkPowerPercent = Math.min(
 >
   Refresh
 </button>
-
-
 </div>
         </div>
+<UpdateBanner show={apiDegraded} text={apiDegradedMsg} />
 
         {/* HERO SEMPRE VISIBILE */}
         <div className="space-y-4">
