@@ -131,6 +131,8 @@ type ProtocolStatusResponse = {
   poolNano: string; // revenue_pool_nano
   reserveNano: string;
   allocatedUnclaimedNano: string;
+  allocatedTotalNano: string;
+  claimedTotalNano: string;
   availableNano: string;
 
   bootstrap: boolean;
@@ -1830,10 +1832,21 @@ async function apiUnequip(slotIndex0: number) {
   function ProtocolTab() {
 
     
-    const poolNano = Number(protocolStatus?.poolNano || "0");
-    const reserveNano = Number(protocolStatus?.reserveNano || "0");
-    const allocNano = Number(protocolStatus?.allocatedUnclaimedNano || "0");
-    const availNano = Number(protocolStatus?.availableNano || "0");
+   const poolNanoBI = BigInt(protocolStatus?.poolNano || "0");
+const reserveNanoBI = BigInt(protocolStatus?.reserveNano || "0");
+const availNanoBI = BigInt(protocolStatus?.availableNano || "0");
+
+// allocated preview = pool - available
+const allocNanoBI = poolNanoBI > availNanoBI ? (poolNanoBI - availNanoBI) : BigInt(0);
+
+// se vuoi continuare a usare i tuoi formatter (Number/1e8) come prima:
+const poolNano = Number(poolNanoBI);
+const reserveNano = Number(reserveNanoBI);
+const availNano = Number(availNanoBI);
+const allocNano = Number(allocNanoBI);
+
+
+    
     const totalNetworkPower = Number(protocolStatus?.totalPower || "0"); // MH/s
     // Mini visual scaling (420 max per GPU * 5 slots realistic per user, ma network può essere grande)
 // Facciamo una scala dinamica soft cap a 100k per la barra visuale
