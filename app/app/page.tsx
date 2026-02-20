@@ -2234,13 +2234,27 @@ const payPerMH = useMemo(() => {
     <div className="mt-3 rounded-xl border border-zinc-800 bg-black/30 p-3">
       {/* rows wrapper: same rhythm as Active Pool */}
       <div className="space-y-3">
+
+
+
         {/* POWER */}
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-zinc-500 text-xs uppercase tracking-wide">Power</span>
-          <span className="font-extrabold tabular-nums text-sm text-zinc-100">
-            {effectivePower}
-          </span>
-        </div>
+<div className="flex items-center justify-between gap-3">
+  <span className="text-zinc-500 text-xs uppercase tracking-wide">
+    Power
+  </span>
+
+  <div className="flex items-baseline gap-1">
+    <span className="font-extrabold tabular-nums text-sm text-zinc-100">
+      {effectivePower}
+    </span>
+    <span className="text-zinc-500 text-xs font-semibold">
+      MH/s
+    </span>
+  </div>
+</div>
+
+
+
 
         {/* EST NEXT PAYOUT */}
         <div className="flex items-center justify-between gap-3">
