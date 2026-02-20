@@ -1945,14 +1945,6 @@ const estNextNano =
         ? Math.floor((dailyAmountNano * effectivePower) / totalPower)
         : null);
 
-// === Payout per 1 MH/s ===
-const payoutPerMhNano =
-  estNextNano !== null && effectivePower > 0
-    ? Math.floor(estNextNano / effectivePower)
-    : (dailyAmountNano !== null && totalPower > 0
-        ? Math.floor(dailyAmountNano / totalPower)
-        : null);
-
 
     return (
       <div className="space-y-4">
@@ -2061,24 +2053,12 @@ const payoutPerMhNano =
               </span>
             </div>
 
-            
-<div className="pt-2 mt-2 border-t border-zinc-800 space-y-2">
-  <div className="flex justify-between">
-    <span className="text-zinc-400">Est. next payout</span>
-    <span className="font-extrabold text-cyan-300">
-      {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${husdSymbol}`}
-    </span>
-  </div>
-
-  <div className="flex justify-between">
-    <span className="text-zinc-400">Payout per 1 MH/s</span>
-    <span className="font-bold text-cyan-300">
-      {payoutPerMhNano === null ? "—" : `${fmtCredits8FromNano(payoutPerMhNano)} ${husdSymbol}`}
-    </span>
-  </div>
-</div>
-
-
+            <div className="pt-2 mt-2 border-t border-zinc-800 flex justify-between">
+                
+              <span className="text-zinc-400">Est. next payout</span>
+              <span className="font-extrabold text-cyan-300">
+                {estNextNano === null ? "—" : `${fmtCredits8FromNano(estNextNano)} ${husdSymbol}`}
+              </span>
             </div>
             <div className="text-[11px] text-zinc-500">
   Estimate uses:
@@ -2090,6 +2070,9 @@ const payoutPerMhNano =
   ? " Last daily distribution."
   : " —"}
 </div>
+
+          </div>
+        </div>
 
         {/* Rig */}
 <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
@@ -2243,24 +2226,6 @@ const payoutPerMhNano =
         </div>
 
         {/* EST NEXT PAYOUT */}
-
-{/* PAYOUT PER 1 MH/s */}
-<div className="flex items-center justify-between gap-3">
-  <span className="text-zinc-500 text-xs uppercase tracking-wide">
-    Payout per 1 MH/s
-  </span>
-
-  <span className="font-extrabold tabular-nums text-sm text-cyan-300">
-    {payoutPerMhNano === null
-      ? "—"
-      : fmtCredits8FromNano(payoutPerMhNano)}{" "}
-    <span className="text-zinc-500 text-xs font-semibold">
-      {husdSymbol}
-    </span>
-  </span>
-</div>
-
-
         <div className="flex items-center justify-between gap-3">
           <span className="text-zinc-500 text-xs uppercase tracking-wide">Est. next payout</span>
           <span className="font-extrabold tabular-nums text-sm text-cyan-300">
