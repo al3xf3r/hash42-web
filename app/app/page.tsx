@@ -1381,7 +1381,7 @@ async function fetchProtocolStatus() {
 
   setApiDegraded(true);
   const msg =
-    status === 0 ? "Connection lost / server restarting…" :
+    status === 0 ? "Server restarting…" :
     status >= 500 ? "Backend is updating… (server restart)" :
     status === 401 ? "Unauthorized (session expired?)" :
     "Update in progress…";
