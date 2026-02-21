@@ -343,7 +343,7 @@ export default function HomePage() {
                       <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3 text-sm space-y-2">
                         <Row label="Pool" value={`${fmtCredits8FromNano(poolNano)} HUSD`} strong />
                         <Row label="Reserve" value={`${fmtCredits8FromNano(reserveNano)} HUSD`} />
-                        <Row label="Allocated" value={`${fmtCredits8FromNano(allocNano)} HUSD`} />
+                        
                         <Row
                           label="Available"
                           value={`${fmtCredits8FromNano(availNano)} HUSD`}
@@ -386,7 +386,7 @@ export default function HomePage() {
               </div>
 
               <div className="mt-6 text-xs text-white/45">
-                This page is the institutional entry point. The app UI and flows may evolve while the core remains revenue-first.
+               
               </div>
             </div>
           </div>
